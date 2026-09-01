@@ -5,6 +5,8 @@ CREATE TABLE IF NOT EXISTS training_sessions (
 
   youtube_url TEXT NOT NULL,
 
+  instructor_token TEXT NOT NULL,
+
   status TEXT NOT NULL DEFAULT 'CREATED'
     CHECK (status IN ('CREATED', 'LIVE', 'ENDED')),
 
