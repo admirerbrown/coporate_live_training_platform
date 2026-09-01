@@ -3,24 +3,83 @@ const crypto = require('crypto');
 async function createSession({ name, youtubeUrl }, db) {
   const instructorToken = crypto.randomBytes(32).toString('hex');
 
+  const client = await db.connect();
+
+  try {
+    await client.query('BEGIN');
+
+    const result = await client.query(
+      `
+        INSERT INTO training_sessions (
+          name,
+          youtube_url,
+          instructor_token,
+          status
+        )
+        VALUES ($1, $2, $3, 'CREATED')
+        RETURNING
+          id,
+          name,
+          youtube_url,
+          status,
+          created_at
+      `,
+      [name, youtubeUrl, instructorToken]
+    );
+
+    const session = result.rows[0];
+
+    await client.query(
+      `
+        INSERT INTO session_playback_state (
+          session_id
+        )
+        VALUES ($1)
+      `,
+      [session.id]
+    );
+
+    await client.query('COMMIT');
+
+    return {
+      id: session.id,
+      name: session.name,
+      youtubeUrl: session.youtube_url,
+      status: session.status,
+      createdAt: session.created_at,
+      instructorToken
+    };
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+
+async function getSession(sessionId, db) {
   const result = await db.query(
     `
-      INSERT INTO training_sessions (
-        name,
-        youtube_url,
-        instructor_token,
-        status
-      )
-      VALUES ($1, $2, $3, 'CREATED')
-      RETURNING
-        id,
-        name,
-        youtube_url,
-        status,
-        created_at
+      SELECT
+        s.id,
+        s.name,
+        s.youtube_url,
+        s.status,
+        s.created_at,
+        p.position,
+        p.is_playing
+      FROM training_sessions s
+      LEFT JOIN session_playback_state p
+        ON p.session_id = s.id
+      WHERE s.id = $1
     `,
-    [name, youtubeUrl, instructorToken]
+    [sessionId]
   );
+
+  if (result.rows.length === 0) {
+    return null;
+  }
 
   const session = result.rows[0];
 
@@ -30,10 +89,13 @@ async function createSession({ name, youtubeUrl }, db) {
     youtubeUrl: session.youtube_url,
     status: session.status,
     createdAt: session.created_at,
-    instructorToken
+    position: Number(session.position),
+    isPlaying: session.is_playing
   };
 }
 
 module.exports = {
-  createSession
+  createSession,
+  getSession
 };
+
