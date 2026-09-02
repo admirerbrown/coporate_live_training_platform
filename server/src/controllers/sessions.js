@@ -1,8 +1,12 @@
 const { isValidSessionName } = require("../validators/sessionName");
-
 const { isValidYoutubeUrl } = require("../validators/youtubeUrl");
+const { isValidParticipantName } = require("../validators/participantName");
 
-const { createSession, getSession } = require("../services/sessions");
+const {
+  createSession,
+  getSession,
+  joinSession,
+} = require("../services/sessions");
 
 function createSessionController(db) {
   return async function (req, res) {
@@ -76,7 +80,57 @@ function getSessionController(db) {
   };
 }
 
+function joinSessionController(db) {
+  return async function (req, res) {
+    const { sessionId } = req.params;
+    const { participantName } = req.body;
+
+    if (!isValidUuid(sessionId)) {
+      return res.status(400).json({
+        error: "Invalid session ID",
+      });
+    }
+
+    if (!isValidParticipantName(participantName)) {
+      return res.status(400).json({
+        error: "Invalid participant name",
+      });
+    }
+
+    try {
+      const result = await joinSession(
+        {
+          sessionId,
+          participantName: participantName.trim(),
+        },
+        db,
+      );
+
+      if (result.type === "NOT_FOUND") {
+        return res.status(404).json({
+          error: "Session not found",
+        });
+      }
+
+      if (result.type === "ENDED") {
+        return res.status(409).json({
+          error: "Session has ended",
+        });
+      }
+
+      return res.status(201).json(result.participant);
+    } catch (error) {
+      console.error("Failed to join session:", error);
+
+      return res.status(500).json({
+        error: "Failed to join session",
+      });
+    }
+  };
+}
+
 module.exports = {
   createSessionController,
   getSessionController,
+  joinSessionController,
 };

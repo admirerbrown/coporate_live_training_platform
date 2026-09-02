@@ -24,3 +24,13 @@ CREATE TABLE IF NOT EXISTS session_playback_state (
   updated_by TEXT
 );
 
+CREATE TABLE IF NOT EXISTS session_participants (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  session_id UUID NOT NULL
+    REFERENCES training_sessions(id)
+    ON DELETE CASCADE,
+  participant_name TEXT NOT NULL
+    CHECK (char_length(trim(participant_name)) BETWEEN 2 AND 100),
+  joined_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  left_at TIMESTAMPTZ
+);

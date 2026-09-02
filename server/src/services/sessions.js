@@ -1,12 +1,12 @@
-const crypto = require('crypto');
+const crypto = require("crypto");
 
 async function createSession({ name, youtubeUrl }, db) {
-  const instructorToken = crypto.randomBytes(32).toString('hex');
+  const instructorToken = crypto.randomBytes(32).toString("hex");
 
   const client = await db.connect();
 
   try {
-    await client.query('BEGIN');
+    await client.query("BEGIN");
 
     const result = await client.query(
       `
@@ -24,7 +24,7 @@ async function createSession({ name, youtubeUrl }, db) {
           status,
           created_at
       `,
-      [name, youtubeUrl, instructorToken]
+      [name, youtubeUrl, instructorToken],
     );
 
     const session = result.rows[0];
@@ -36,10 +36,10 @@ async function createSession({ name, youtubeUrl }, db) {
         )
         VALUES ($1)
       `,
-      [session.id]
+      [session.id],
     );
 
-    await client.query('COMMIT');
+    await client.query("COMMIT");
 
     return {
       id: session.id,
@@ -47,16 +47,15 @@ async function createSession({ name, youtubeUrl }, db) {
       youtubeUrl: session.youtube_url,
       status: session.status,
       createdAt: session.created_at,
-      instructorToken
+      instructorToken,
     };
   } catch (error) {
-    await client.query('ROLLBACK');
+    await client.query("ROLLBACK");
     throw error;
   } finally {
     client.release();
   }
 }
-
 
 async function getSession(sessionId, db) {
   const result = await db.query(
@@ -74,7 +73,7 @@ async function getSession(sessionId, db) {
         ON p.session_id = s.id
       WHERE s.id = $1
     `,
-    [sessionId]
+    [sessionId],
   );
 
   if (result.rows.length === 0) {
@@ -90,12 +89,67 @@ async function getSession(sessionId, db) {
     status: session.status,
     createdAt: session.created_at,
     position: Number(session.position),
-    isPlaying: session.is_playing
+    isPlaying: session.is_playing,
+  };
+}
+
+async function joinSession({ sessionId, participantName }, db) {
+  const sessionResult = await db.query(
+    `
+      SELECT
+        id,
+        status
+      FROM training_sessions
+      WHERE id = $1
+    `,
+    [sessionId],
+  );
+
+  if (sessionResult.rows.length === 0) {
+    return {
+      type: "NOT_FOUND",
+    };
+  }
+
+  const session = sessionResult.rows[0];
+
+  if (session.status === "ENDED") {
+    return {
+      type: "ENDED",
+    };
+  }
+
+  const result = await db.query(
+    `
+      INSERT INTO session_participants (
+        session_id,
+        participant_name
+      )
+      VALUES ($1, $2)
+      RETURNING
+        id,
+        session_id,
+        participant_name,
+        joined_at
+    `,
+    [sessionId, participantName],
+  );
+
+  const participant = result.rows[0];
+
+  return {
+    type: "JOINED",
+    participant: {
+      sessionId: participant.session_id,
+      participantName: participant.participant_name,
+      participantId: participant.id,
+      joinedAt: participant.joined_at,
+    },
   };
 }
 
 module.exports = {
   createSession,
-  getSession
+  getSession,
+  joinSession,
 };
-
