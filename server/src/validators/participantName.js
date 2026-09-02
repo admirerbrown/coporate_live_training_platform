@@ -1,5 +1,5 @@
 function isValidParticipantName(name) {
-  if (typeof name !== 'string') {
+  if (typeof name !== "string") {
     return false;
   }
 
@@ -17,5 +17,5 @@ function isValidParticipantName(name) {
 }
 
 module.exports = {
-  isValidParticipantName
+  isValidParticipantName,
 };

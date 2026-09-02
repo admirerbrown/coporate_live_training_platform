@@ -148,8 +148,156 @@ async function joinSession({ sessionId, participantName }, db) {
   };
 }
 
+async function startSession({ sessionId, instructorToken }, db) {
+  const result = await db.query(
+    `
+      SELECT
+        id,
+        name,
+        youtube_url,
+        status,
+        created_at,
+        instructor_token
+      FROM training_sessions
+      WHERE id = $1
+    `,
+    [sessionId]
+  );
+
+  if (result.rows.length === 0) {
+    return {
+      type: 'NOT_FOUND'
+    };
+  }
+
+  const session = result.rows[0];
+
+  if (session.instructor_token !== instructorToken) {
+    return {
+      type: 'UNAUTHORIZED'
+    };
+  }
+
+  if (session.status === 'LIVE') {
+    return {
+      type: 'ALREADY_LIVE'
+    };
+  }
+
+  if (session.status === 'ENDED') {
+    return {
+      type: 'ENDED'
+    };
+  }
+
+  const updateResult = await db.query(
+    `
+      UPDATE training_sessions
+      SET
+        status = 'LIVE',
+        updated_at = now()
+      WHERE id = $1
+      RETURNING
+        id,
+        name,
+        youtube_url,
+        status,
+        created_at
+    `,
+    [sessionId]
+  );
+
+  const updatedSession = updateResult.rows[0];
+
+  return {
+    type: 'STARTED',
+    session: {
+      id: updatedSession.id,
+      name: updatedSession.name,
+      youtubeUrl: updatedSession.youtube_url,
+      status: updatedSession.status,
+      createdAt: updatedSession.created_at
+    }
+  };
+}
+
+async function endSession({ sessionId, instructorToken }, db) {
+  const result = await db.query(
+    `
+      SELECT
+        id,
+        name,
+        youtube_url,
+        status,
+        created_at,
+        instructor_token
+      FROM training_sessions
+      WHERE id = $1
+    `,
+    [sessionId]
+  );
+
+  if (result.rows.length === 0) {
+    return {
+      type: 'NOT_FOUND'
+    };
+  }
+
+  const session = result.rows[0];
+
+  if (session.instructor_token !== instructorToken) {
+    return {
+      type: 'UNAUTHORIZED'
+    };
+  }
+
+  if (session.status === 'CREATED') {
+    return {
+      type: 'NOT_STARTED'
+    };
+  }
+
+  if (session.status === 'ENDED') {
+    return {
+      type: 'ALREADY_ENDED'
+    };
+  }
+
+  const updateResult = await db.query(
+    `
+      UPDATE training_sessions
+      SET
+        status = 'ENDED',
+        updated_at = now()
+      WHERE id = $1
+      RETURNING
+        id,
+        name,
+        youtube_url,
+        status,
+        created_at
+    `,
+    [sessionId]
+  );
+
+  const updatedSession = updateResult.rows[0];
+
+  return {
+    type: 'ENDED',
+    session: {
+      id: updatedSession.id,
+      name: updatedSession.name,
+      youtubeUrl: updatedSession.youtube_url,
+      status: updatedSession.status,
+      createdAt: updatedSession.created_at
+    }
+  };
+}
+
 module.exports = {
   createSession,
   getSession,
   joinSession,
+  startSession,
+  endSession
 };
