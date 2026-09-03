@@ -1,14 +1,15 @@
-const { WebSocketServer } = require('ws');
+const { WebSocketServer } = require("ws");
+const { verifyInstructorToken } = require("./services/sessions");
 
 function attachWebSocketServer(server, db) {
   const wss = new WebSocketServer({
     server,
-    path: '/ws'
+    path: "/ws",
   });
 
-  wss.on('connection', async (ws, req) => {
-    const url = new URL(req.url, 'http://localhost');
-    const sessionId = url.searchParams.get('sessionId');
+  wss.on("connection", async (ws, req) => {
+    const url = new URL(req.url, "http://localhost");
+    const sessionId = url.searchParams.get("sessionId");
 
     ws.isInstructor = false;
 
@@ -26,7 +27,7 @@ function attachWebSocketServer(server, db) {
         FROM session_playback_state
         WHERE session_id = $1
       `,
-      [sessionId]
+      [sessionId],
     );
 
     if (result.rows.length === 0) {
@@ -38,35 +39,32 @@ function attachWebSocketServer(server, db) {
 
     ws.send(
       JSON.stringify({
-        type: 'playback:state',
+        type: "playback:state",
         position: Number(state.position),
         isPlaying: state.is_playing,
-        version: state.version
-      })
+        version: state.version,
+      }),
     );
 
-    ws.on('message', async (data) => {
+    ws.on("message", async (data) => {
       const message = JSON.parse(data.toString());
 
-      if (message.type === 'auth') {
-        const authResult = await db.query(
-          `
-            SELECT instructor_token
-            FROM training_sessions
-            WHERE id = $1
-          `,
-          [sessionId]
+      // Instructor authentication
+      if (message.type === "auth") {
+        const authorization = await verifyInstructorToken(
+          {
+            sessionId,
+            instructorToken: message.token,
+          },
+          db,
         );
 
-        if (
-          authResult.rows.length === 0 ||
-          authResult.rows[0].instructor_token !== message.token
-        ) {
+        if (authorization.type !== "AUTHORIZED") {
           ws.send(
             JSON.stringify({
-              type: 'auth:error',
-              code: 'INVALID_TOKEN'
-            })
+              type: "auth:error",
+              code: "INVALID_TOKEN",
+            }),
           );
 
           return;
@@ -76,31 +74,33 @@ function attachWebSocketServer(server, db) {
 
         ws.send(
           JSON.stringify({
-            type: 'auth:success'
-          })
+            type: "auth:success",
+          }),
         );
 
         return;
       }
 
+      // Only authenticated instructors can control playback
       if (
-        message.type === 'playback:play' ||
-        message.type === 'playback:pause' ||
-        message.type === 'playback:seek'
+        message.type === "playback:play" ||
+        message.type === "playback:pause" ||
+        message.type === "playback:seek"
       ) {
         if (!ws.isInstructor) {
           ws.send(
             JSON.stringify({
-              type: 'playback:error',
-              code: 'UNAUTHORIZED'
-            })
+              type: "playback:error",
+              code: "UNAUTHORIZED",
+            }),
           );
 
           return;
         }
       }
 
-      if (message.type === 'playback:play') {
+      // Play
+      if (message.type === "playback:play") {
         const updateResult = await db.query(
           `
             UPDATE session_playback_state
@@ -114,7 +114,7 @@ function attachWebSocketServer(server, db) {
               is_playing,
               version
           `,
-          [sessionId]
+          [sessionId],
         );
 
         if (updateResult.rows.length === 0) {
@@ -125,15 +125,16 @@ function attachWebSocketServer(server, db) {
 
         ws.send(
           JSON.stringify({
-            type: 'playback:state',
+            type: "playback:state",
             position: Number(updatedState.position),
             isPlaying: updatedState.is_playing,
-            version: updatedState.version
-          })
+            version: updatedState.version,
+          }),
         );
       }
 
-      if (message.type === 'playback:pause') {
+      // Pause
+      if (message.type === "playback:pause") {
         const updateResult = await db.query(
           `
             UPDATE session_playback_state
@@ -147,7 +148,7 @@ function attachWebSocketServer(server, db) {
               is_playing,
               version
           `,
-          [sessionId]
+          [sessionId],
         );
 
         if (updateResult.rows.length === 0) {
@@ -158,15 +159,16 @@ function attachWebSocketServer(server, db) {
 
         ws.send(
           JSON.stringify({
-            type: 'playback:state',
+            type: "playback:state",
             position: Number(updatedState.position),
             isPlaying: updatedState.is_playing,
-            version: updatedState.version
-          })
+            version: updatedState.version,
+          }),
         );
       }
 
-      if (message.type === 'playback:seek') {
+      // Seek
+      if (message.type === "playback:seek") {
         const updateResult = await db.query(
           `
             UPDATE session_playback_state
@@ -180,7 +182,7 @@ function attachWebSocketServer(server, db) {
               is_playing,
               version
           `,
-          [message.position, sessionId]
+          [message.position, sessionId],
         );
 
         if (updateResult.rows.length === 0) {
@@ -191,11 +193,11 @@ function attachWebSocketServer(server, db) {
 
         ws.send(
           JSON.stringify({
-            type: 'playback:state',
+            type: "playback:state",
             position: Number(updatedState.position),
             isPlaying: updatedState.is_playing,
-            version: updatedState.version
-          })
+            version: updatedState.version,
+          }),
         );
       }
     });
@@ -205,6 +207,5 @@ function attachWebSocketServer(server, db) {
 }
 
 module.exports = {
-  attachWebSocketServer
+  attachWebSocketServer,
 };
-

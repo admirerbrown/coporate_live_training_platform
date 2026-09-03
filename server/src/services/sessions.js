@@ -148,7 +148,43 @@ async function joinSession({ sessionId, participantName }, db) {
   };
 }
 
+async function verifyInstructorToken({ sessionId, instructorToken }, db) {
+  const result = await db.query(
+    `
+      SELECT instructor_token
+      FROM training_sessions
+      WHERE id = $1
+    `,
+    [sessionId],
+  );
+
+  if (result.rows.length === 0) {
+    return {
+      type: "NOT_FOUND",
+    };
+  }
+
+  if (result.rows[0].instructor_token !== instructorToken) {
+    return {
+      type: "UNAUTHORIZED",
+    };
+  }
+
+  return {
+    type: "AUTHORIZED",
+  };
+}
+
 async function startSession({ sessionId, instructorToken }, db) {
+  const authorization = await verifyInstructorToken(
+    { sessionId, instructorToken },
+    db,
+  );
+
+  if (authorization.type !== "AUTHORIZED") {
+    return authorization;
+  }
+
   const result = await db.query(
     `
       SELECT
@@ -156,37 +192,24 @@ async function startSession({ sessionId, instructorToken }, db) {
         name,
         youtube_url,
         status,
-        created_at,
-        instructor_token
+        created_at
       FROM training_sessions
       WHERE id = $1
     `,
-    [sessionId]
+    [sessionId],
   );
-
-  if (result.rows.length === 0) {
-    return {
-      type: 'NOT_FOUND'
-    };
-  }
 
   const session = result.rows[0];
 
-  if (session.instructor_token !== instructorToken) {
+  if (session.status === "LIVE") {
     return {
-      type: 'UNAUTHORIZED'
+      type: "ALREADY_LIVE",
     };
   }
 
-  if (session.status === 'LIVE') {
+  if (session.status === "ENDED") {
     return {
-      type: 'ALREADY_LIVE'
-    };
-  }
-
-  if (session.status === 'ENDED') {
-    return {
-      type: 'ENDED'
+      type: "ENDED",
     };
   }
 
@@ -204,24 +227,33 @@ async function startSession({ sessionId, instructorToken }, db) {
         status,
         created_at
     `,
-    [sessionId]
+    [sessionId],
   );
 
   const updatedSession = updateResult.rows[0];
 
   return {
-    type: 'STARTED',
+    type: "STARTED",
     session: {
       id: updatedSession.id,
       name: updatedSession.name,
       youtubeUrl: updatedSession.youtube_url,
       status: updatedSession.status,
-      createdAt: updatedSession.created_at
-    }
+      createdAt: updatedSession.created_at,
+    },
   };
 }
 
 async function endSession({ sessionId, instructorToken }, db) {
+  const authorization = await verifyInstructorToken(
+    { sessionId, instructorToken },
+    db,
+  );
+
+  if (authorization.type !== "AUTHORIZED") {
+    return authorization;
+  }
+
   const result = await db.query(
     `
       SELECT
@@ -229,37 +261,24 @@ async function endSession({ sessionId, instructorToken }, db) {
         name,
         youtube_url,
         status,
-        created_at,
-        instructor_token
+        created_at
       FROM training_sessions
       WHERE id = $1
     `,
-    [sessionId]
+    [sessionId],
   );
-
-  if (result.rows.length === 0) {
-    return {
-      type: 'NOT_FOUND'
-    };
-  }
 
   const session = result.rows[0];
 
-  if (session.instructor_token !== instructorToken) {
+  if (session.status === "CREATED") {
     return {
-      type: 'UNAUTHORIZED'
+      type: "NOT_STARTED",
     };
   }
 
-  if (session.status === 'CREATED') {
+  if (session.status === "ENDED") {
     return {
-      type: 'NOT_STARTED'
-    };
-  }
-
-  if (session.status === 'ENDED') {
-    return {
-      type: 'ALREADY_ENDED'
+      type: "ALREADY_ENDED",
     };
   }
 
@@ -277,20 +296,20 @@ async function endSession({ sessionId, instructorToken }, db) {
         status,
         created_at
     `,
-    [sessionId]
+    [sessionId],
   );
 
   const updatedSession = updateResult.rows[0];
 
   return {
-    type: 'ENDED',
+    type: "ENDED",
     session: {
       id: updatedSession.id,
       name: updatedSession.name,
       youtubeUrl: updatedSession.youtube_url,
       status: updatedSession.status,
-      createdAt: updatedSession.created_at
-    }
+      createdAt: updatedSession.created_at,
+    },
   };
 }
 
@@ -298,6 +317,7 @@ module.exports = {
   createSession,
   getSession,
   joinSession,
+  verifyInstructorToken,
   startSession,
-  endSession
+  endSession,
 };
