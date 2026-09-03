@@ -1,6 +1,13 @@
 import "dotenv/config";
 
-import { describe, it, expect, beforeEach, afterEach, afterAll } from "vitest";
+import {
+  describe,
+  it,
+  expect,
+  beforeEach,
+  afterEach,
+  afterAll,
+} from "vitest";
 
 import WebSocket from "ws";
 import http from "http";
@@ -33,16 +40,28 @@ describe("WebSocket playback controls", () => {
   });
 
   afterEach(async () => {
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.close();
+    if (
+      ws &&
+      (ws.readyState === WebSocket.OPEN ||
+        ws.readyState === WebSocket.CONNECTING)
+    ) {
+      ws.terminate();
     }
 
     await new Promise((resolve) => {
-      wss.close(resolve);
+      if (wss) {
+        wss.close(resolve);
+      } else {
+        resolve();
+      }
     });
 
     await new Promise((resolve) => {
-      server.close(resolve);
+      if (server) {
+        server.close(resolve);
+      } else {
+        resolve();
+      }
     });
   });
 
@@ -84,7 +103,9 @@ describe("WebSocket playback controls", () => {
       [sessionId, 10, false, 0],
     );
 
-    ws = new WebSocket(`${baseUrl}/ws?sessionId=${sessionId}`);
+    ws = new WebSocket(
+      `${baseUrl}/ws?sessionId=${sessionId}`,
+    );
 
     await new Promise((resolve, reject) => {
       ws.once("open", resolve);
@@ -132,12 +153,23 @@ describe("WebSocket playback controls", () => {
       ws.once("error", reject);
     });
 
-    expect(message).toEqual({
+    expect(message).toMatchObject({
       type: "playback:state",
       position: 10,
       isPlaying: true,
       version: 1,
     });
+
+    expect(message.updatedAt).toBeTruthy();
+    expect(message.serverTime).toBeTruthy();
+
+    expect(
+      Number.isNaN(Date.parse(message.updatedAt)),
+    ).toBe(false);
+
+    expect(
+      Number.isNaN(Date.parse(message.serverTime)),
+    ).toBe(false);
 
     const result = await pool.query(
       `
@@ -158,3 +190,4 @@ describe("WebSocket playback controls", () => {
     });
   });
 });
+

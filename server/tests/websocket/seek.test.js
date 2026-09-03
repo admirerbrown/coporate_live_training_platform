@@ -1,4 +1,4 @@
-import 'dotenv/config';
+import "dotenv/config";
 
 import {
   describe,
@@ -6,26 +6,26 @@ import {
   expect,
   beforeEach,
   afterEach,
-  afterAll
-} from 'vitest';
+  afterAll,
+} from "vitest";
 
-import WebSocket from 'ws';
-import http from 'http';
+import WebSocket from "ws";
+import http from "http";
 
-import { app } from '../../src/app';
-import pool from '../../src/db/pool';
-import { attachWebSocketServer } from '../../src/websocket';
+import { app } from "../../src/app";
+import pool from "../../src/db/pool";
+import { attachWebSocketServer } from "../../src/websocket";
 
-describe('WebSocket playback controls', () => {
+describe("WebSocket playback controls", () => {
   let server;
   let wss;
   let ws;
   let baseUrl;
 
   beforeEach(async () => {
-    await pool.query('DELETE FROM session_participants');
-    await pool.query('DELETE FROM session_playback_state');
-    await pool.query('DELETE FROM training_sessions');
+    await pool.query("DELETE FROM session_participants");
+    await pool.query("DELETE FROM session_playback_state");
+    await pool.query("DELETE FROM training_sessions");
 
     server = http.createServer(app);
 
@@ -40,16 +40,28 @@ describe('WebSocket playback controls', () => {
   });
 
   afterEach(async () => {
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.close();
+    if (
+      ws &&
+      (ws.readyState === WebSocket.OPEN ||
+        ws.readyState === WebSocket.CONNECTING)
+    ) {
+      ws.terminate();
     }
 
     await new Promise((resolve) => {
-      wss.close(resolve);
+      if (wss) {
+        wss.close(resolve);
+      } else {
+        resolve();
+      }
     });
 
     await new Promise((resolve) => {
-      server.close(resolve);
+      if (server) {
+        server.close(resolve);
+      } else {
+        resolve();
+      }
     });
   });
 
@@ -57,7 +69,7 @@ describe('WebSocket playback controls', () => {
     await pool.end();
   });
 
-  it('updates playback position when instructor sends seek', async () => {
+  it("updates playback position when instructor sends seek", async () => {
     const sessionResult = await pool.query(
       `
         INSERT INTO training_sessions (
@@ -70,10 +82,10 @@ describe('WebSocket playback controls', () => {
         RETURNING id
       `,
       [
-        'Seek Test Session',
-        'https://www.youtube.com/watch?v=test123',
-        'test-instructor-token'
-      ]
+        "Seek Test Session",
+        "https://www.youtube.com/watch?v=test123",
+        "test-instructor-token",
+      ],
     );
 
     const sessionId = sessionResult.rows[0].id;
@@ -88,66 +100,77 @@ describe('WebSocket playback controls', () => {
         )
         VALUES ($1, $2, $3, $4)
       `,
-      [sessionId, 10, false, 0]
+      [sessionId, 10, false, 0],
     );
 
     ws = new WebSocket(
-      `${baseUrl}/ws?sessionId=${sessionId}`
+      `${baseUrl}/ws?sessionId=${sessionId}`,
     );
 
     await new Promise((resolve, reject) => {
-      ws.once('open', resolve);
-      ws.once('error', reject);
+      ws.once("open", resolve);
+      ws.once("error", reject);
     });
 
     // Consume the initial playback state.
     await new Promise((resolve, reject) => {
-      ws.once('message', () => resolve());
-      ws.once('error', reject);
+      ws.once("message", () => resolve());
+      ws.once("error", reject);
     });
 
     // Authenticate as the instructor.
     ws.send(
       JSON.stringify({
-        type: 'auth',
-        token: 'test-instructor-token'
-      })
+        type: "auth",
+        token: "test-instructor-token",
+      }),
     );
 
     const authMessage = await new Promise((resolve, reject) => {
-      ws.once('message', (data) => {
+      ws.once("message", (data) => {
         resolve(JSON.parse(data.toString()));
       });
 
-      ws.once('error', reject);
+      ws.once("error", reject);
     });
 
     expect(authMessage).toEqual({
-      type: 'auth:success'
+      type: "auth:success",
     });
 
     // Send the seek command.
     ws.send(
       JSON.stringify({
-        type: 'playback:seek',
-        position: 42.5
-      })
+        type: "playback:seek",
+        position: 42.5,
+      }),
     );
 
     const message = await new Promise((resolve, reject) => {
-      ws.once('message', (data) => {
+      ws.once("message", (data) => {
         resolve(JSON.parse(data.toString()));
       });
 
-      ws.once('error', reject);
+      ws.once("error", reject);
     });
 
-    expect(message).toEqual({
-      type: 'playback:state',
+    expect(message).toMatchObject({
+      type: "playback:state",
       position: 42.5,
       isPlaying: false,
-      version: 1
+      version: 1,
     });
+
+    expect(message.updatedAt).toBeTruthy();
+    expect(message.serverTime).toBeTruthy();
+
+    expect(
+      Number.isNaN(Date.parse(message.updatedAt)),
+    ).toBe(false);
+
+    expect(
+      Number.isNaN(Date.parse(message.serverTime)),
+    ).toBe(false);
 
     const result = await pool.query(
       `
@@ -158,13 +181,13 @@ describe('WebSocket playback controls', () => {
         FROM session_playback_state
         WHERE session_id = $1
       `,
-      [sessionId]
+      [sessionId],
     );
 
     expect(result.rows[0]).toEqual({
-      position: '42.5',
+      position: "42.5",
       is_playing: false,
-      version: 1
+      version: 1,
     });
   });
 });

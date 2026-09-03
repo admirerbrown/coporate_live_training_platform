@@ -1,14 +1,24 @@
 import "dotenv/config";
-import { describe, it, expect, beforeEach, afterAll } from "vitest";
+
+import {
+  describe,
+  it,
+  expect,
+  beforeEach,
+  afterEach,
+  afterAll,
+} from "vitest";
+
 import { attachWebSocketServer } from "../../src/websocket";
 import WebSocket from "ws";
 import http from "http";
-
 import { app } from "../../src/app";
 import pool from "../../src/db/pool";
 
 describe("WebSocket connection", () => {
   let server;
+  let wss;
+  let ws;
   let baseUrl;
 
   beforeEach(async () => {
@@ -16,10 +26,9 @@ describe("WebSocket connection", () => {
     await pool.query("DELETE FROM session_playback_state");
     await pool.query("DELETE FROM training_sessions");
 
-
     server = http.createServer(app);
 
-    attachWebSocketServer(server, pool);
+    wss = attachWebSocketServer(server, pool);
 
     await new Promise((resolve) => {
       server.listen(0, resolve);
@@ -27,6 +36,32 @@ describe("WebSocket connection", () => {
 
     const { port } = server.address();
     baseUrl = `ws://localhost:${port}`;
+  });
+
+  afterEach(async () => {
+    if (
+      ws &&
+      (ws.readyState === WebSocket.OPEN ||
+        ws.readyState === WebSocket.CONNECTING)
+    ) {
+      ws.terminate();
+    }
+
+    await new Promise((resolve) => {
+      if (wss) {
+        wss.close(resolve);
+      } else {
+        resolve();
+      }
+    });
+
+    await new Promise((resolve) => {
+      if (server) {
+        server.close(resolve);
+      } else {
+        resolve();
+      }
+    });
   });
 
   afterAll(async () => {
@@ -67,24 +102,29 @@ describe("WebSocket connection", () => {
       [sessionId],
     );
 
-    const ws = new WebSocket(`${baseUrl}/ws?sessionId=${sessionId}`);
+    ws = new WebSocket(
+      `${baseUrl}/ws?sessionId=${sessionId}`,
+    );
 
     const message = await new Promise((resolve, reject) => {
-      ws.on("message", (data) => {
+      ws.once("message", (data) => {
         resolve(JSON.parse(data.toString()));
       });
 
-      ws.on("error", reject);
+      ws.once("error", reject);
     });
 
-    expect(message).toEqual({
+    expect(message).toMatchObject({
       type: "playback:state",
       position: 0,
       isPlaying: false,
       version: 0,
     });
 
-    ws.close();
-    server.close();
+    expect(message.updatedAt).toBeTruthy();
+    expect(message.serverTime).toBeTruthy();
+
+    expect(Number.isNaN(Date.parse(message.updatedAt))).toBe(false);
+    expect(Number.isNaN(Date.parse(message.serverTime))).toBe(false);
   });
 });

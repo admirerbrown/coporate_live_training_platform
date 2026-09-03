@@ -4,6 +4,17 @@ const { verifyInstructorToken } = require("./services/sessions");
 function attachWebSocketServer(server, db) {
   const connectionsBySession = new Map();
 
+  function createPlaybackStateMessage(state) {
+    return {
+      type: "playback:state",
+      position: Number(state.position),
+      isPlaying: state.is_playing,
+      version: state.version,
+      updatedAt: new Date(state.updated_at).toISOString(),
+      serverTime: new Date().toISOString(),
+    };
+  }
+
   function broadcastPlaybackState(sessionId, state) {
     const connections = connectionsBySession.get(sessionId);
 
@@ -11,12 +22,7 @@ function attachWebSocketServer(server, db) {
       return;
     }
 
-    const message = JSON.stringify({
-      type: "playback:state",
-      position: Number(state.position),
-      isPlaying: state.is_playing,
-      version: state.version,
-    });
+    const message = JSON.stringify(createPlaybackStateMessage(state));
 
     for (const socket of connections) {
       if (socket.readyState === WebSocket.OPEN) {
@@ -56,7 +62,8 @@ function attachWebSocketServer(server, db) {
           s.status,
           p.position,
           p.is_playing,
-          p.version
+          p.version,
+          p.updated_at
         FROM training_sessions s
         INNER JOIN session_playback_state p
           ON p.session_id = s.id
@@ -74,7 +81,9 @@ function attachWebSocketServer(server, db) {
 
     if (state.status === "ENDED") {
       sendError(ws, "session:error", "SESSION_ENDED");
+
       ws.close();
+
       return;
     }
 
@@ -84,26 +93,19 @@ function attachWebSocketServer(server, db) {
 
     connectionsBySession.get(sessionId).add(ws);
 
-    ws.send(
-      JSON.stringify({
-        type: "playback:state",
-        position: Number(state.position),
-        isPlaying: state.is_playing,
-        version: state.version,
-      }),
-    );
+    ws.send(JSON.stringify(createPlaybackStateMessage(state)));
 
     ws.on("message", async (data) => {
       try {
         const message = JSON.parse(data.toString());
 
-        // A WebSocket message must be a JSON object.
         if (
           message === null ||
           typeof message !== "object" ||
           Array.isArray(message)
         ) {
           sendError(ws, "error", "INVALID_MESSAGE");
+
           return;
         }
 
@@ -119,6 +121,7 @@ function attachWebSocketServer(server, db) {
 
           if (authorization.type !== "AUTHORIZED") {
             sendError(ws, "auth:error", "INVALID_TOKEN");
+
             return;
           }
 
@@ -141,6 +144,7 @@ function attachWebSocketServer(server, db) {
         ) {
           if (!ws.isInstructor) {
             sendError(ws, "playback:error", "UNAUTHORIZED");
+
             return;
           }
         }
@@ -158,7 +162,8 @@ function attachWebSocketServer(server, db) {
               RETURNING
                 position,
                 is_playing,
-                version
+                version,
+                updated_at
             `,
             [sessionId],
           );
@@ -167,10 +172,7 @@ function attachWebSocketServer(server, db) {
             return;
           }
 
-          broadcastPlaybackState(
-            sessionId,
-            updateResult.rows[0],
-          );
+          broadcastPlaybackState(sessionId, updateResult.rows[0]);
 
           return;
         }
@@ -188,7 +190,8 @@ function attachWebSocketServer(server, db) {
               RETURNING
                 position,
                 is_playing,
-                version
+                version,
+                updated_at
             `,
             [sessionId],
           );
@@ -197,10 +200,7 @@ function attachWebSocketServer(server, db) {
             return;
           }
 
-          broadcastPlaybackState(
-            sessionId,
-            updateResult.rows[0],
-          );
+          broadcastPlaybackState(sessionId, updateResult.rows[0]);
 
           return;
         }
@@ -212,11 +212,7 @@ function attachWebSocketServer(server, db) {
             !Number.isFinite(message.position) ||
             message.position < 0
           ) {
-            sendError(
-              ws,
-              "playback:error",
-              "INVALID_POSITION",
-            );
+            sendError(ws, "playback:error", "INVALID_POSITION");
 
             return;
           }
@@ -232,7 +228,8 @@ function attachWebSocketServer(server, db) {
               RETURNING
                 position,
                 is_playing,
-                version
+                version,
+                updated_at
             `,
             [message.position, sessionId],
           );
@@ -241,18 +238,12 @@ function attachWebSocketServer(server, db) {
             return;
           }
 
-          broadcastPlaybackState(
-            sessionId,
-            updateResult.rows[0],
-          );
+          broadcastPlaybackState(sessionId, updateResult.rows[0]);
 
           return;
         }
       } catch (error) {
-        console.error(
-          "WebSocket message handling error:",
-          error,
-        );
+        console.error("WebSocket message handling error:", error);
 
         sendError(ws, "error", "INVALID_MESSAGE");
       }

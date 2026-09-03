@@ -1,6 +1,12 @@
 import "dotenv/config";
 
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import {
+  describe,
+  it,
+  expect,
+  beforeEach,
+  afterEach,
+} from "vitest";
 
 import WebSocket from "ws";
 import http from "http";
@@ -13,6 +19,7 @@ describe("WebSocket playback broadcasting", () => {
   let server;
   let wss;
   let baseUrl;
+
   const sockets = [];
 
   beforeEach(async () => {
@@ -78,7 +85,11 @@ describe("WebSocket playback broadcasting", () => {
         VALUES ($1, $2, $3, 'LIVE')
         RETURNING id, instructor_token
       `,
-      [name, "https://www.youtube.com/watch?v=dQw4w9WgXcQ", instructorToken],
+      [
+        name,
+        "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+        instructorToken,
+      ],
     );
 
     const session = result.rows[0];
@@ -97,7 +108,9 @@ describe("WebSocket playback broadcasting", () => {
   }
 
   async function connect(sessionId) {
-    const socket = new WebSocket(`${baseUrl}?sessionId=${sessionId}`);
+    const socket = new WebSocket(
+      `${baseUrl}?sessionId=${sessionId}`,
+    );
 
     sockets.push(socket);
 
@@ -106,8 +119,18 @@ describe("WebSocket playback broadcasting", () => {
       socket.once("error", reject);
     });
 
-    // Consume the initial state before returning the socket.
+    // Consume the initial playback state before returning the socket.
     const initialMessage = await nextMessage(socket);
+
+    expect(initialMessage).toMatchObject({
+      type: "playback:state",
+      position: 0,
+      isPlaying: false,
+      version: 0,
+    });
+
+    expect(initialMessage.updatedAt).toBeTruthy();
+    expect(initialMessage.serverTime).toBeTruthy();
 
     return {
       socket,
@@ -159,6 +182,24 @@ describe("WebSocket playback broadcasting", () => {
     });
   }
 
+  function expectValidPlaybackState(message, expectedState) {
+    expect(message).toMatchObject({
+      type: "playback:state",
+      ...expectedState,
+    });
+
+    expect(message.updatedAt).toBeTruthy();
+    expect(message.serverTime).toBeTruthy();
+
+    expect(
+      Number.isNaN(Date.parse(message.updatedAt)),
+    ).toBe(false);
+
+    expect(
+      Number.isNaN(Date.parse(message.serverTime)),
+    ).toBe(false);
+  }
+
   it("broadcasts playback state to the instructor and two participants in the same session", async () => {
     const session = await createLiveSession();
 
@@ -166,7 +207,10 @@ describe("WebSocket playback broadcasting", () => {
     const { socket: participantA } = await connect(session.id);
     const { socket: participantB } = await connect(session.id);
 
-    await authenticate(instructor, session.instructor_token);
+    await authenticate(
+      instructor,
+      session.instructor_token,
+    );
 
     const instructorState = nextMessage(instructor);
     const participantAState = nextMessage(participantA);
@@ -184,14 +228,29 @@ describe("WebSocket playback broadcasting", () => {
       participantBState,
     ]);
 
-    const expectedState = {
-      type: "playback:state",
-      position: 0,
-      isPlaying: true,
-      version: 1,
-    };
+    for (const message of messages) {
+      expectValidPlaybackState(message, {
+        position: 0,
+        isPlaying: true,
+        version: 1,
+      });
+    }
 
-    expect(messages).toEqual([expectedState, expectedState, expectedState]);
+    expect(messages[0].updatedAt).toBe(
+      messages[1].updatedAt,
+    );
+
+    expect(messages[1].updatedAt).toBe(
+      messages[2].updatedAt,
+    );
+
+    expect(messages[0].serverTime).toBe(
+      messages[1].serverTime,
+    );
+
+    expect(messages[1].serverTime).toBe(
+      messages[2].serverTime,
+    );
   });
 
   it("does not broadcast session A playback changes to session B", async () => {
@@ -209,9 +268,14 @@ describe("WebSocket playback broadcasting", () => {
     const { socket: participantA } = await connect(sessionA.id);
     const { socket: participantB } = await connect(sessionB.id);
 
-    await authenticate(instructorA, sessionA.instructor_token);
+    await authenticate(
+      instructorA,
+      sessionA.instructor_token,
+    );
 
-    const participantAMessage = nextMessage(participantA);
+    const participantAMessage = nextMessage(
+      participantA,
+    );
 
     let sessionBReceived = false;
 
@@ -231,8 +295,7 @@ describe("WebSocket playback broadcasting", () => {
 
     participantB.off("message", onMessage);
 
-    expect(message).toEqual({
-      type: "playback:state",
+    expectValidPlaybackState(message, {
       position: 0,
       isPlaying: true,
       version: 1,
@@ -251,7 +314,10 @@ describe("WebSocket playback broadcasting", () => {
     const { socket: instructor } = await connect(session.id);
     const { socket: participant } = await connect(session.id);
 
-    await authenticate(instructor, session.instructor_token);
+    await authenticate(
+      instructor,
+      session.instructor_token,
+    );
 
     const participantState = nextMessage(participant);
 
@@ -261,8 +327,9 @@ describe("WebSocket playback broadcasting", () => {
       }),
     );
 
-    await expect(participantState).resolves.toEqual({
-      type: "playback:state",
+    const message = await participantState;
+
+    expectValidPlaybackState(message, {
       position: 0,
       isPlaying: false,
       version: 1,
@@ -276,7 +343,10 @@ describe("WebSocket playback broadcasting", () => {
     const { socket: participantA } = await connect(session.id);
     const { socket: participantB } = await connect(session.id);
 
-    await authenticate(instructor, session.instructor_token);
+    await authenticate(
+      instructor,
+      session.instructor_token,
+    );
 
     participantA.close();
 
@@ -292,20 +362,33 @@ describe("WebSocket playback broadcasting", () => {
       }),
     );
 
-    const [instructorMessage, participantBMessage] = await Promise.all([
+    const [
+      instructorMessage,
+      participantBMessage,
+    ] = await Promise.all([
       instructorState,
       participantBState,
     ]);
 
-    const expectedState = {
-      type: "playback:state",
+    expectValidPlaybackState(instructorMessage, {
       position: 42,
       isPlaying: false,
       version: 1,
-    };
+    });
 
-    expect(instructorMessage).toEqual(expectedState);
-    expect(participantBMessage).toEqual(expectedState);
+    expectValidPlaybackState(participantBMessage, {
+      position: 42,
+      isPlaying: false,
+      version: 1,
+    });
+
+    expect(
+      instructorMessage.updatedAt,
+    ).toBe(participantBMessage.updatedAt);
+
+    expect(
+      instructorMessage.serverTime,
+    ).toBe(participantBMessage.serverTime);
   });
 
   it("persists the updated playback state before broadcasting it", async () => {
@@ -314,7 +397,10 @@ describe("WebSocket playback broadcasting", () => {
     const { socket: instructor } = await connect(session.id);
     const { socket: participant } = await connect(session.id);
 
-    await authenticate(instructor, session.instructor_token);
+    await authenticate(
+      instructor,
+      session.instructor_token,
+    );
 
     const participantState = nextMessage(participant);
 
@@ -327,8 +413,7 @@ describe("WebSocket playback broadcasting", () => {
 
     const message = await participantState;
 
-    expect(message).toEqual({
-      type: "playback:state",
+    expectValidPlaybackState(message, {
       position: 125,
       isPlaying: false,
       version: 1,
@@ -339,17 +424,31 @@ describe("WebSocket playback broadcasting", () => {
         SELECT
           position,
           is_playing,
-          version
+          version,
+          updated_at
         FROM session_playback_state
         WHERE session_id = $1
       `,
       [session.id],
     );
 
+    expect(result.rows).toHaveLength(1);
+
     expect(result.rows[0]).toEqual({
       position: "125",
       is_playing: false,
       version: 1,
+      updated_at: expect.any(Date),
     });
+
+    expect(message.updatedAt).toBe(
+      result.rows[0].updated_at.toISOString(),
+    );
+
+    expect(
+      Date.parse(message.updatedAt),
+    ).toBeLessThanOrEqual(
+      Date.parse(message.serverTime),
+    );
   });
 });

@@ -149,6 +149,37 @@ describe("WebSocket message validation", () => {
       `${baseUrl}?sessionId=${sessionId}`,
     );
 
+    ws.messageQueue = [];
+    ws.messageWaiters = [];
+
+    ws.on("message", (data) => {
+      const message = JSON.parse(data.toString());
+
+      if (ws.messageWaiters.length > 0) {
+        const waiter = ws.messageWaiters.shift();
+        waiter.resolve(message);
+        return;
+      }
+
+      ws.messageQueue.push(message);
+    });
+
+    ws.on("error", (error) => {
+      while (ws.messageWaiters.length > 0) {
+        const waiter = ws.messageWaiters.shift();
+        waiter.reject(error);
+      }
+    });
+
+    ws.on("close", () => {
+      const error = new Error("WebSocket closed");
+
+      while (ws.messageWaiters.length > 0) {
+        const waiter = ws.messageWaiters.shift();
+        waiter.reject(error);
+      }
+    });
+
     return new Promise((resolve, reject) => {
       ws.once("open", resolve);
       ws.once("error", reject);
@@ -156,24 +187,40 @@ describe("WebSocket message validation", () => {
   }
 
   function nextMessage() {
-    return new Promise((resolve, reject) => {
-      ws.once("message", (data) => {
-        resolve(JSON.parse(data.toString()));
-      });
+    if (ws.messageQueue.length > 0) {
+      return Promise.resolve(ws.messageQueue.shift());
+    }
 
-      ws.once("error", reject);
+    return new Promise((resolve, reject) => {
+      ws.messageWaiters.push({
+        resolve,
+        reject,
+      });
     });
   }
 
   async function consumeInitialState() {
     const message = await nextMessage();
 
-    expect(message).toEqual({
+    expect(message).toMatchObject({
       type: "playback:state",
       position: 15,
       isPlaying: true,
       version: 4,
     });
+
+    expect(message.updatedAt).toBeTruthy();
+    expect(message.serverTime).toBeTruthy();
+
+    expect(
+      Number.isNaN(Date.parse(message.updatedAt)),
+    ).toBe(false);
+
+    expect(
+      Number.isNaN(Date.parse(message.serverTime)),
+    ).toBe(false);
+
+    return message;
   }
 
   async function authenticate(token) {
@@ -241,7 +288,13 @@ describe("WebSocket message validation", () => {
     await connect(session.id);
     await consumeInitialState();
 
-    await authenticate(session.instructor_token);
+    const authMessage = await authenticate(
+      session.instructor_token,
+    );
+
+    expect(authMessage).toEqual({
+      type: "auth:success",
+    });
 
     ws.send(
       JSON.stringify({
@@ -281,7 +334,13 @@ describe("WebSocket message validation", () => {
     await connect(session.id);
     await consumeInitialState();
 
-    await authenticate(session.instructor_token);
+    const authMessage = await authenticate(
+      session.instructor_token,
+    );
+
+    expect(authMessage).toEqual({
+      type: "auth:success",
+    });
 
     ws.send(
       JSON.stringify({
@@ -322,7 +381,13 @@ describe("WebSocket message validation", () => {
     await connect(session.id);
     await consumeInitialState();
 
-    await authenticate(session.instructor_token);
+    const authMessage = await authenticate(
+      session.instructor_token,
+    );
+
+    expect(authMessage).toEqual({
+      type: "auth:success",
+    });
 
     ws.send(
       JSON.stringify({
