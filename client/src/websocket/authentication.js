@@ -1,67 +1,80 @@
 export function createAuthenticationClient({ socketClient }) {
   let role = "participant";
   let pendingAuthentication = null;
+  let destroyed = false;
 
   const roleListeners = new Set();
 
-  socketClient.onMessage((message) => {
-    if (
-      !message ||
-      typeof message !== "object"
-    ) {
-      return;
-    }
+  const unsubscribeMessage = socketClient.onMessage(
+    (message) => {
+      if (destroyed) {
+        return;
+      }
 
-    if (message.type === "auth:success") {
-      role = "instructor";
+      if (
+        !message ||
+        typeof message !== "object"
+      ) {
+        return;
+      }
 
-      if (pendingAuthentication) {
+      if (message.type === "auth:success") {
+        role = "instructor";
+
+        if (pendingAuthentication) {
+          const pending = pendingAuthentication;
+          pendingAuthentication = null;
+
+          pending.resolve({
+            ok: true,
+          });
+        }
+
+        notifyRoleChange();
+        return;
+      }
+
+      if (message.type === "auth:error") {
+        if (!pendingAuthentication) {
+          return;
+        }
+
         const pending = pendingAuthentication;
         pendingAuthentication = null;
 
         pending.resolve({
-          ok: true,
+          ok: false,
+          code: message.code,
         });
       }
+    },
+  );
 
-      notifyRoleChange();
-      return;
-    }
-
-    if (message.type === "auth:error") {
-      if (!pendingAuthentication) {
+  const unsubscribeStatus =
+    socketClient.onStatusChange((status) => {
+      if (
+        destroyed ||
+        status !== "disconnected" ||
+        !pendingAuthentication
+      ) {
         return;
       }
 
       const pending = pendingAuthentication;
       pendingAuthentication = null;
 
-      pending.resolve({
-        ok: false,
-        code: message.code,
-      });
-
-      return;
-    }
-  });
-
-  socketClient.onStatusChange((status) => {
-    if (
-      status !== "disconnected" ||
-      !pendingAuthentication
-    ) {
-      return;
-    }
-
-    const pending = pendingAuthentication;
-    pendingAuthentication = null;
-
-    pending.reject(
-      new Error("WebSocket disconnected"),
-    );
-  });
+      pending.reject(
+        new Error("WebSocket disconnected"),
+      );
+    });
 
   function authenticate(token) {
+    if (destroyed) {
+      return Promise.reject(
+        new Error("Authentication client destroyed"),
+      );
+    }
+
     if (pendingAuthentication) {
       return Promise.reject(
         new Error("Authentication already in progress"),
@@ -92,6 +105,10 @@ export function createAuthenticationClient({ socketClient }) {
   }
 
   function onRoleChange(listener) {
+    if (destroyed) {
+      return () => {};
+    }
+
     roleListeners.add(listener);
 
     return () => {
@@ -105,9 +122,32 @@ export function createAuthenticationClient({ socketClient }) {
     }
   }
 
+  function destroy() {
+    if (destroyed) {
+      return;
+    }
+
+    destroyed = true;
+
+    unsubscribeMessage();
+    unsubscribeStatus();
+
+    roleListeners.clear();
+
+    if (pendingAuthentication) {
+      const pending = pendingAuthentication;
+      pendingAuthentication = null;
+
+      pending.reject(
+        new Error("Authentication client destroyed"),
+      );
+    }
+  }
+
   return {
     authenticate,
     getRole,
     onRoleChange,
+    destroy,
   };
 }

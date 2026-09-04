@@ -1,14 +1,6 @@
-import {
-  beforeEach,
-  describe,
-  expect,
-  it,
-  vi,
-} from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import {
-  createAuthenticationClient,
-} from "../../websocket/authentication";
+import { createAuthenticationClient } from "../../websocket/authentication";
 
 function createSocketClientMock() {
   const messageListeners = new Set();
@@ -68,9 +60,7 @@ describe("WebSocket authentication", () => {
   });
 
   it("sends the instructor authentication message", async () => {
-    const authentication = authClient.authenticate(
-      "test-instructor-token",
-    );
+    const authentication = authClient.authenticate("test-instructor-token");
 
     expect(socketClient.send).toHaveBeenCalledWith({
       type: "auth",
@@ -87,9 +77,7 @@ describe("WebSocket authentication", () => {
   });
 
   it("becomes an instructor after auth:success", async () => {
-    const authentication = authClient.authenticate(
-      "test-instructor-token",
-    );
+    const authentication = authClient.authenticate("test-instructor-token");
 
     socketClient.emitMessage({
       type: "auth:success",
@@ -105,9 +93,7 @@ describe("WebSocket authentication", () => {
   });
 
   it("remains a participant after auth:error", async () => {
-    const authentication = authClient.authenticate(
-      "wrong-instructor-token",
-    );
+    const authentication = authClient.authenticate("wrong-instructor-token");
 
     socketClient.emitMessage({
       type: "auth:error",
@@ -125,9 +111,7 @@ describe("WebSocket authentication", () => {
   });
 
   it("preserves the server authentication error code", async () => {
-    const authentication = authClient.authenticate(
-      "wrong-token",
-    );
+    const authentication = authClient.authenticate("wrong-token");
 
     socketClient.emitMessage({
       type: "auth:error",
@@ -141,9 +125,7 @@ describe("WebSocket authentication", () => {
   });
 
   it("ignores unrelated WebSocket messages", async () => {
-    const authentication = authClient.authenticate(
-      "test-instructor-token",
-    );
+    const authentication = authClient.authenticate("test-instructor-token");
 
     socketClient.emitMessage({
       type: "playback:state",
@@ -180,9 +162,7 @@ describe("WebSocket authentication", () => {
 
     authClient.onRoleChange(onRoleChange);
 
-    const authentication = authClient.authenticate(
-      "test-instructor-token",
-    );
+    const authentication = authClient.authenticate("test-instructor-token");
 
     socketClient.emitMessage({
       type: "auth:success",
@@ -190,22 +170,17 @@ describe("WebSocket authentication", () => {
 
     await authentication;
 
-    expect(onRoleChange).toHaveBeenCalledWith(
-      "instructor",
-    );
+    expect(onRoleChange).toHaveBeenCalledWith("instructor");
   });
 
   it("supports unsubscribing from role changes", async () => {
     const onRoleChange = vi.fn();
 
-    const unsubscribe =
-      authClient.onRoleChange(onRoleChange);
+    const unsubscribe = authClient.onRoleChange(onRoleChange);
 
     unsubscribe();
 
-    const authentication = authClient.authenticate(
-      "test-instructor-token",
-    );
+    const authentication = authClient.authenticate("test-instructor-token");
 
     socketClient.emitMessage({
       type: "auth:success",
@@ -217,12 +192,11 @@ describe("WebSocket authentication", () => {
   });
 
   it("rejects a second authentication attempt while one is pending", async () => {
-    const firstAuthentication =
-      authClient.authenticate("first-token");
+    const firstAuthentication = authClient.authenticate("first-token");
 
-    await expect(
-      authClient.authenticate("second-token"),
-    ).rejects.toThrow("Authentication already in progress");
+    await expect(authClient.authenticate("second-token")).rejects.toThrow(
+      "Authentication already in progress",
+    );
 
     expect(socketClient.send).toHaveBeenCalledTimes(1);
 
@@ -236,8 +210,7 @@ describe("WebSocket authentication", () => {
   });
 
   it("does not downgrade an instructor after a failed re-authentication", async () => {
-    const firstAuthentication =
-      authClient.authenticate("correct-token");
+    const firstAuthentication = authClient.authenticate("correct-token");
 
     socketClient.emitMessage({
       type: "auth:success",
@@ -247,8 +220,7 @@ describe("WebSocket authentication", () => {
 
     expect(authClient.getRole()).toBe("instructor");
 
-    const secondAuthentication =
-      authClient.authenticate("wrong-token");
+    const secondAuthentication = authClient.authenticate("wrong-token");
 
     socketClient.emitMessage({
       type: "auth:error",
@@ -264,8 +236,7 @@ describe("WebSocket authentication", () => {
   });
 
   it("remains an instructor after successful re-authentication", async () => {
-    const firstAuthentication =
-      authClient.authenticate("correct-token");
+    const firstAuthentication = authClient.authenticate("correct-token");
 
     socketClient.emitMessage({
       type: "auth:success",
@@ -275,8 +246,7 @@ describe("WebSocket authentication", () => {
 
     expect(authClient.getRole()).toBe("instructor");
 
-    const secondAuthentication =
-      authClient.authenticate("correct-token");
+    const secondAuthentication = authClient.authenticate("correct-token");
 
     socketClient.emitMessage({
       type: "auth:success",
@@ -290,15 +260,62 @@ describe("WebSocket authentication", () => {
   });
 
   it("rejects a pending authentication when the WebSocket disconnects", async () => {
-    const authentication =
-      authClient.authenticate("test-token");
+    const authentication = authClient.authenticate("test-token");
 
     socketClient.emitStatus("disconnected");
 
-    await expect(authentication).rejects.toThrow(
-      "WebSocket disconnected",
-    );
+    await expect(authentication).rejects.toThrow("WebSocket disconnected");
 
     expect(authClient.getRole()).toBe("participant");
+  });
+
+  it("stops reacting to authentication messages after destroy", () => {
+    const onRoleChange = vi.fn();
+
+    authClient.onRoleChange(onRoleChange);
+
+    authClient.destroy();
+
+    socketClient.emitMessage({
+      type: "auth:success",
+    });
+
+    expect(authClient.getRole()).toBe("participant");
+    expect(onRoleChange).not.toHaveBeenCalled();
+  });
+
+  it("stops reacting to connection status changes after destroy", () => {
+    const authentication = authClient.authenticate("test-token");
+
+    authClient.destroy();
+
+    socketClient.emitStatus("disconnected");
+
+    expect(authClient.getRole()).toBe("participant");
+
+    return expect(authentication).rejects.toThrow(
+      "Authentication client destroyed",
+    );
+  });
+
+  it("clears role subscribers when destroyed", () => {
+    const onRoleChange = vi.fn();
+
+    authClient.onRoleChange(onRoleChange);
+
+    authClient.destroy();
+
+    socketClient.emitMessage({
+      type: "auth:success",
+    });
+
+    expect(onRoleChange).not.toHaveBeenCalled();
+  });
+
+  it("is safe to destroy more than once", () => {
+    expect(() => {
+      authClient.destroy();
+      authClient.destroy();
+    }).not.toThrow();
   });
 });
