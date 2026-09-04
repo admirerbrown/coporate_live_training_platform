@@ -4,7 +4,7 @@ import { describe, it, expect } from "vitest";
 
 import {
   calculateEffectivePosition,
-} from "../../src/utils/playbackSync";
+} from "../../../shared/playbackSync";
 
 describe("calculateEffectivePosition", () => {
   it("returns the exact position for a paused session", () => {
