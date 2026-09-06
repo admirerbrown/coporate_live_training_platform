@@ -1,14 +1,6 @@
-import {
-  beforeEach,
-  describe,
-  expect,
-  it,
-  vi,
-} from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import {
-  createSession,
-} from "../../api/sessions";
+import { createSession } from "../../api/sessions";
 
 describe("sessions API", () => {
   beforeEach(() => {
@@ -38,24 +30,19 @@ describe("sessions API", () => {
 
     const result = await createSession({
       name: "React Training",
-      youtubeUrl:
-        "https://www.youtube.com/watch?v=test123",
+      youtubeUrl: "https://www.youtube.com/watch?v=test123",
     });
 
-    expect(fetch).toHaveBeenCalledWith(
-      "/api/sessions",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          name: "React Training",
-          youtubeUrl:
-            "https://www.youtube.com/watch?v=test123",
-        }),
+    expect(fetch).toHaveBeenCalledWith("/api/sessions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
       },
-    );
+      body: JSON.stringify({
+        name: "React Training",
+        youtubeUrl: "https://www.youtube.com/watch?v=test123",
+      }),
+    });
 
     expect(result).toEqual(response);
   });
@@ -78,8 +65,7 @@ describe("sessions API", () => {
     await expect(
       createSession({
         name: "",
-        youtubeUrl:
-          "https://www.youtube.com/watch?v=test123",
+        youtubeUrl: "https://www.youtube.com/watch?v=test123",
       }),
     ).rejects.toThrow("Invalid session name");
   });
@@ -99,8 +85,7 @@ describe("sessions API", () => {
     await expect(
       createSession({
         name: "Training",
-        youtubeUrl:
-          "https://www.youtube.com/watch?v=test123",
+        youtubeUrl: "https://www.youtube.com/watch?v=test123",
       }),
     ).rejects.toThrow("Failed to create session");
   });
@@ -116,8 +101,7 @@ describe("sessions API", () => {
     await expect(
       createSession({
         name: "Training",
-        youtubeUrl:
-          "https://www.youtube.com/watch?v=test123",
+        youtubeUrl: "https://www.youtube.com/watch?v=test123",
       }),
     ).rejects.toThrow("Network unavailable");
   });

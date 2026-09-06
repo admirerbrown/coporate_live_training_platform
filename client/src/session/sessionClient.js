@@ -3,10 +3,7 @@ import {
   createInitialPlaybackState,
 } from "../state/playbackState";
 
-export function createSessionClient({
-  socketClient,
-  authenticationClient,
-}) {
+export function createSessionClient({ socketClient, authenticationClient }) {
   let playback = createInitialPlaybackState();
   let destroyed = false;
 
@@ -45,53 +42,44 @@ export function createSessionClient({
     notifyStateChange();
   }
 
-  const unsubscribeStatus =
-    socketClient.onStatusChange((status) => {
-      if (destroyed) {
-        return;
-      }
+  const unsubscribeStatus = socketClient.onStatusChange((status) => {
+    if (destroyed) {
+      return;
+    }
 
-      updateState({
-        connectionStatus: status,
-        role:
-          status === "disconnected"
-            ? "participant"
-            : state.role,
-      });
+    updateState({
+      connectionStatus: status,
+      role: status === "disconnected" ? "participant" : state.role,
     });
+  });
 
-  const unsubscribeMessage =
-    socketClient.onMessage((message) => {
-      if (destroyed) {
-        return;
-      }
+  const unsubscribeMessage = socketClient.onMessage((message) => {
+    if (destroyed) {
+      return;
+    }
 
-      const nextPlayback = applyPlaybackState(
-        playback,
-        message,
-      );
+    const nextPlayback = applyPlaybackState(playback, message);
 
-      if (nextPlayback === playback) {
-        return;
-      }
+    if (nextPlayback === playback) {
+      return;
+    }
 
-      playback = nextPlayback;
+    playback = nextPlayback;
 
-      updateState({
-        playback,
-      });
+    updateState({
+      playback,
     });
+  });
 
-  const unsubscribeRole =
-    authenticationClient.onRoleChange((nextRole) => {
-      if (destroyed || state.role === nextRole) {
-        return;
-      }
+  const unsubscribeRole = authenticationClient.onRoleChange((nextRole) => {
+    if (destroyed || state.role === nextRole) {
+      return;
+    }
 
-      updateState({
-        role: nextRole,
-      });
+    updateState({
+      role: nextRole,
     });
+  });
 
   function connect() {
     if (destroyed) {
@@ -111,9 +99,7 @@ export function createSessionClient({
 
   function authenticate(token) {
     if (destroyed) {
-      return Promise.reject(
-        new Error("Session client destroyed"),
-      );
+      return Promise.reject(new Error("Session client destroyed"));
     }
 
     return authenticationClient.authenticate(token);

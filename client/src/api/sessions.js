@@ -1,9 +1,6 @@
 import { request } from "./request";
 
-export function createSession({
-  name,
-  youtubeUrl,
-}) {
+export function createSession({ name, youtubeUrl }) {
   return request(
     "/api/sessions",
     {
