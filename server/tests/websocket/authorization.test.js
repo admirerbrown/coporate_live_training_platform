@@ -272,4 +272,126 @@ describe('WebSocket authentication', () => {
 
     expect(message).toEqual({ type: 'playback:error', code: 'UNAUTHORIZED' });
   });
+
+    it("rejects all playback commands when the session is not live", async () => {
+    const { sessionId, instructorToken } =
+      await createLiveSession();
+
+    await pool.query(
+      `
+        UPDATE training_sessions
+        SET status = 'CREATED'
+        WHERE id = $1
+      `,
+      [sessionId],
+    );
+
+    const { socket } = await connect(sessionId);
+
+    await authenticate(
+      socket,
+      instructorToken,
+    );
+
+    const commands = [
+      {
+        type: "playback:play",
+      },
+      {
+        type: "playback:pause",
+      },
+      {
+        type: "playback:seek",
+        position: 42,
+      },
+    ];
+
+    for (const command of commands) {
+      socket.send(
+        JSON.stringify(command),
+      );
+
+      const message =
+        await nextMessage(socket);
+
+      expect(message).toEqual({
+        type: "playback:error",
+        code: "SESSION_NOT_LIVE",
+      });
+    }
+
+    const result = await pool.query(
+      `
+        SELECT
+          position,
+          is_playing,
+          version
+        FROM session_playback_state
+        WHERE session_id = $1
+      `,
+      [sessionId],
+    );
+
+    expect(result.rows[0]).toEqual({
+      position: "0",
+      is_playing: false,
+      version: 0,
+    });
+  });
+
+  it("rejects playback commands when a live session becomes ended after the instructor connects", async () => {
+    const {
+      sessionId,
+      instructorToken,
+    } = await createLiveSession();
+
+    const { socket } =
+      await connect(sessionId);
+
+    await authenticate(
+      socket,
+      instructorToken,
+    );
+
+    await pool.query(
+      `
+        UPDATE training_sessions
+        SET status = 'ENDED'
+        WHERE id = $1
+      `,
+      [sessionId],
+    );
+
+    socket.send(
+      JSON.stringify({
+        type: "playback:pause",
+      }),
+    );
+
+    const message =
+      await nextMessage(socket);
+
+    expect(message).toEqual({
+      type: "playback:error",
+      code: "SESSION_NOT_LIVE",
+    });
+
+    const result = await pool.query(
+      `
+        SELECT
+          position,
+          is_playing,
+          version
+        FROM session_playback_state
+        WHERE session_id = $1
+      `,
+      [sessionId],
+    );
+
+    expect(result.rows[0]).toEqual({
+      position: "0",
+      is_playing: false,
+      version: 0,
+    });
+  });
 });

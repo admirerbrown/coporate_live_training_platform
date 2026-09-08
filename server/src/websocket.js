@@ -1,4 +1,7 @@
 const { WebSocketServer, WebSocket } = require("ws");
+
+const { calculateEffectivePosition } = require("../../shared/playbackSync");
+
 const { verifyInstructorToken } = require("./services/sessions");
 
 function attachWebSocketServer(server, db) {
@@ -40,22 +43,7 @@ function attachWebSocketServer(server, db) {
     );
   }
 
-  const wss = new WebSocketServer({
-    server,
-    path: "/ws",
-  });
-
-  wss.on("connection", async (ws, req) => {
-    const url = new URL(req.url, "http://localhost");
-    const sessionId = url.searchParams.get("sessionId");
-
-    ws.isInstructor = false;
-
-    if (!sessionId) {
-      ws.close();
-      return;
-    }
-
+  async function getSessionPlaybackState(sessionId) {
     const result = await db.query(
       `
         SELECT
@@ -73,17 +61,40 @@ function attachWebSocketServer(server, db) {
     );
 
     if (result.rows.length === 0) {
+      return null;
+    }
+
+    return result.rows[0];
+  }
+
+  const wss = new WebSocketServer({
+    server,
+    path: "/ws",
+  });
+
+  wss.on("connection", async (ws, req) => {
+    const url = new URL(req.url, "http://localhost");
+
+    const sessionId = url.searchParams.get("sessionId");
+
+    ws.isInstructor = false;
+
+    if (!sessionId) {
       ws.close();
       return;
     }
 
-    const state = result.rows[0];
+    const state = await getSessionPlaybackState(sessionId);
+
+    if (!state) {
+      ws.close();
+      return;
+    }
 
     if (state.status === "ENDED") {
       sendError(ws, "session:error", "SESSION_ENDED");
 
       ws.close();
-
       return;
     }
 
@@ -136,111 +147,139 @@ function attachWebSocketServer(server, db) {
           return;
         }
 
-        // Only authenticated instructors can control playback.
-        if (
+        const isPlaybackCommand =
           message.type === "playback:play" ||
           message.type === "playback:pause" ||
-          message.type === "playback:seek"
-        ) {
+          message.type === "playback:seek";
+
+        // Only authenticated instructors
+        // can control playback.
+        if (isPlaybackCommand) {
           if (!ws.isInstructor) {
             sendError(ws, "playback:error", "UNAUTHORIZED");
 
             return;
           }
-        }
 
-        // Play
-        if (message.type === "playback:play") {
-          const updateResult = await db.query(
-            `
-              UPDATE session_playback_state
-              SET
-                is_playing = true,
-                version = version + 1,
-                updated_at = now()
-              WHERE session_id = $1
-              RETURNING
-                position,
-                is_playing,
-                version,
-                updated_at
-            `,
-            [sessionId],
-          );
+          // The session lifecycle is also
+          // a playback-control boundary.
+          const currentState = await getSessionPlaybackState(sessionId);
 
-          if (updateResult.rows.length === 0) {
-            return;
-          }
-
-          broadcastPlaybackState(sessionId, updateResult.rows[0]);
-
-          return;
-        }
-
-        // Pause
-        if (message.type === "playback:pause") {
-          const updateResult = await db.query(
-            `
-              UPDATE session_playback_state
-              SET
-                is_playing = false,
-                version = version + 1,
-                updated_at = now()
-              WHERE session_id = $1
-              RETURNING
-                position,
-                is_playing,
-                version,
-                updated_at
-            `,
-            [sessionId],
-          );
-
-          if (updateResult.rows.length === 0) {
-            return;
-          }
-
-          broadcastPlaybackState(sessionId, updateResult.rows[0]);
-
-          return;
-        }
-
-        // Seek
-        if (message.type === "playback:seek") {
-          if (
-            typeof message.position !== "number" ||
-            !Number.isFinite(message.position) ||
-            message.position < 0
-          ) {
-            sendError(ws, "playback:error", "INVALID_POSITION");
+          if (!currentState) {
+            sendError(ws, "playback:error", "SESSION_NOT_FOUND");
 
             return;
           }
 
-          const updateResult = await db.query(
-            `
-              UPDATE session_playback_state
-              SET
-                position = $1,
-                version = version + 1,
-                updated_at = now()
-              WHERE session_id = $2
-              RETURNING
-                position,
-                is_playing,
-                version,
-                updated_at
-            `,
-            [message.position, sessionId],
-          );
+          if (currentState.status !== "LIVE") {
+            sendError(ws, "playback:error", "SESSION_NOT_LIVE");
 
-          if (updateResult.rows.length === 0) {
             return;
           }
 
-          broadcastPlaybackState(sessionId, updateResult.rows[0]);
+          // Play
+          if (message.type === "playback:play") {
+            const updateResult = await db.query(
+              `
+                    UPDATE session_playback_state
+                    SET
+                      is_playing = true,
+                      version = version + 1,
+                      updated_at = now()
+                    WHERE session_id = $1
+                    RETURNING
+                      position,
+                      is_playing,
+                      version,
+                      updated_at
+                  `,
+              [sessionId],
+            );
 
-          return;
+            if (updateResult.rows.length === 0) {
+              return;
+            }
+
+            broadcastPlaybackState(sessionId, updateResult.rows[0]);
+
+            return;
+          }
+
+          // Pause
+          if (message.type === "playback:pause") {
+            const pauseServerTime = new Date().toISOString();
+
+            const effectivePosition = calculateEffectivePosition({
+              position: Number(currentState.position),
+              isPlaying: currentState.is_playing,
+              updatedAt: new Date(currentState.updated_at).toISOString(),
+              serverTime: pauseServerTime,
+            });
+
+            const updateResult = await db.query(
+              `
+                    UPDATE session_playback_state
+                    SET
+                      position = $1,
+                      is_playing = false,
+                      version = version + 1,
+                      updated_at = now()
+                    WHERE session_id = $2
+                    RETURNING
+                      position,
+                      is_playing,
+                      version,
+                      updated_at
+                  `,
+              [effectivePosition, sessionId],
+            );
+
+            if (updateResult.rows.length === 0) {
+              return;
+            }
+
+            broadcastPlaybackState(sessionId, updateResult.rows[0]);
+
+            return;
+          }
+
+          // Seek
+          if (message.type === "playback:seek") {
+            if (
+              typeof message.position !== "number" ||
+              !Number.isFinite(message.position) ||
+              message.position < 0
+            ) {
+              sendError(ws, "playback:error", "INVALID_POSITION");
+
+              return;
+            }
+
+            const updateResult = await db.query(
+              `
+                    UPDATE session_playback_state
+                    SET
+                      position = $1,
+                      version = version + 1,
+                      updated_at = now()
+                    WHERE session_id = $2
+                    RETURNING
+                      position,
+                      is_playing,
+                      version,
+                      updated_at
+                  `,
+              [message.position, sessionId],
+            );
+
+            if (updateResult.rows.length === 0) {
+              return;
+            }
+
+            broadcastPlaybackState(sessionId, updateResult.rows[0]);
+
+            return;
+          }
         }
       } catch (error) {
         console.error("WebSocket message handling error:", error);
