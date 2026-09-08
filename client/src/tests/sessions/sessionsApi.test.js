@@ -11,6 +11,8 @@ import {
   createSession,
   getSession,
   joinSession,
+  startSession,
+  endSession,
 } from "../../api/sessions";
 
 describe("sessions API", () => {
@@ -342,5 +344,216 @@ describe("sessions API", () => {
         "Network unavailable",
       );
     });
+  });
+});
+describe("startSession", () => {
+  it("starts a session with the instructor token", async () => {
+    const session = {
+      id: "session-123",
+      name: "JavaScript Training",
+      youtubeUrl:
+        "https://www.youtube.com/watch?v=test123",
+      status: "LIVE",
+    };
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() =>
+        Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve(session),
+        }),
+      ),
+    );
+
+    const result = await startSession(
+      "session-123",
+      "secret-token",
+    );
+
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/sessions/session-123/start",
+      {
+        method: "POST",
+        headers: {
+          Authorization: "Bearer secret-token",
+        },
+      },
+    );
+
+    expect(result).toEqual(session);
+  });
+
+  it("surfaces start errors", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() =>
+        Promise.resolve({
+          ok: false,
+          status: 409,
+          json: () =>
+            Promise.resolve({
+              error: "Session is already live",
+            }),
+        }),
+      ),
+    );
+
+    await expect(
+      startSession(
+        "session-123",
+        "secret-token",
+      ),
+    ).rejects.toThrow(
+      "Session is already live",
+    );
+  });
+
+  it("uses a generic error when starting fails without a message", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() =>
+        Promise.resolve({
+          ok: false,
+          status: 500,
+          json: () => Promise.resolve({}),
+        }),
+      ),
+    );
+
+    await expect(
+      startSession(
+        "session-123",
+        "secret-token",
+      ),
+    ).rejects.toThrow(
+      "Failed to start session",
+    );
+  });
+
+  it("propagates network errors when starting", async () => {
+    const networkError = new Error(
+      "Network unavailable",
+    );
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() =>
+        Promise.reject(networkError),
+      ),
+    );
+
+    await expect(
+      startSession(
+        "session-123",
+        "secret-token",
+      ),
+    ).rejects.toThrow("Network unavailable");
+  });
+});
+
+describe("endSession", () => {
+  it("ends a session with the instructor token", async () => {
+    const session = {
+      id: "session-123",
+      name: "JavaScript Training",
+      youtubeUrl:
+        "https://www.youtube.com/watch?v=test123",
+      status: "ENDED",
+    };
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() =>
+        Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve(session),
+        }),
+      ),
+    );
+
+    const result = await endSession(
+      "session-123",
+      "secret-token",
+    );
+
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/sessions/session-123/end",
+      {
+        method: "POST",
+        headers: {
+          Authorization: "Bearer secret-token",
+        },
+      },
+    );
+
+    expect(result).toEqual(session);
+  });
+
+  it("surfaces end errors", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() =>
+        Promise.resolve({
+          ok: false,
+          status: 409,
+          json: () =>
+            Promise.resolve({
+              error: "Session has not started",
+            }),
+        }),
+      ),
+    );
+
+    await expect(
+      endSession(
+        "session-123",
+        "secret-token",
+      ),
+    ).rejects.toThrow(
+      "Session has not started",
+    );
+  });
+
+  it("uses a generic error when ending fails without a message", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() =>
+        Promise.resolve({
+          ok: false,
+          status: 500,
+          json: () => Promise.resolve({}),
+        }),
+      ),
+    );
+
+    await expect(
+      endSession(
+        "session-123",
+        "secret-token",
+      ),
+    ).rejects.toThrow(
+      "Failed to end session",
+    );
+  });
+
+  it("propagates network errors when ending", async () => {
+    const networkError = new Error(
+      "Network unavailable",
+    );
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() =>
+        Promise.reject(networkError),
+      ),
+    );
+
+    await expect(
+      endSession(
+        "session-123",
+        "secret-token",
+      ),
+    ).rejects.toThrow("Network unavailable");
   });
 });

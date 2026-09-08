@@ -31,10 +31,7 @@ export function getSession(sessionId) {
   );
 }
 
-export function joinSession(
-  sessionId,
-  participantName,
-) {
+export function joinSession(sessionId, participantName) {
   return request(
     `/api/sessions/${sessionId}/join`,
     {
@@ -48,6 +45,35 @@ export function joinSession(
     },
     {
       fallbackMessage: "Failed to join session",
+    },
+  );
+}
+export function startSession(sessionId, instructorToken) {
+  return request(
+    `/api/sessions/${sessionId}/start`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${instructorToken}`,
+      },
+    },
+    {
+      fallbackMessage: "Failed to start session",
+    },
+  );
+}
+
+export function endSession(sessionId, instructorToken) {
+  return request(
+    `/api/sessions/${sessionId}/end`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${instructorToken}`,
+      },
+    },
+    {
+      fallbackMessage: "Failed to end session",
     },
   );
 }
