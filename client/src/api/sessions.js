@@ -18,3 +18,36 @@ export function createSession({ name, youtubeUrl }) {
     },
   );
 }
+
+export function getSession(sessionId) {
+  return request(
+    `/api/sessions/${sessionId}`,
+    {
+      method: "GET",
+    },
+    {
+      fallbackMessage: "Failed to get session",
+    },
+  );
+}
+
+export function joinSession(
+  sessionId,
+  participantName,
+) {
+  return request(
+    `/api/sessions/${sessionId}/join`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        participantName,
+      }),
+    },
+    {
+      fallbackMessage: "Failed to join session",
+    },
+  );
+}
