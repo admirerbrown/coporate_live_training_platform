@@ -5,10 +5,7 @@ import {
   createInitialPlaybackState,
 } from "../../state/playbackState";
 
-import {
-  calculateEffectivePosition,
-} from "../../../../shared/playbackSync";
-
+import { calculateEffectivePosition } from "../../../../shared/playbackSync";
 
 describe("playback state adapter", () => {
   it("accepts the initial playback state", () => {
@@ -59,13 +56,13 @@ describe("playback state adapter", () => {
     expect(nextState.updatedAt).toBe(message.updatedAt);
   });
 
-  it("ignores a message with the same version", () => {
+  it("ignores a message with the same version and older server time", () => {
     const currentState = {
       position: 100,
       isPlaying: false,
       version: 4,
       updatedAt: "2026-01-01T12:00:00.000Z",
-      serverTime: "2026-01-01T12:00:00.000Z",
+      serverTime: "2026-01-01T12:00:05.000Z",
     };
 
     const message = {
@@ -74,14 +71,13 @@ describe("playback state adapter", () => {
       isPlaying: true,
       version: 4,
       updatedAt: "2026-01-01T12:01:00.000Z",
-      serverTime: "2026-01-01T12:01:05.000Z",
+      serverTime: "2026-01-01T12:00:04.000Z",
     };
 
     const nextState = applyPlaybackState(currentState, message);
 
     expect(nextState).toBe(currentState);
   });
-
   it("ignores a message with an older version", () => {
     const currentState = {
       position: 200,
@@ -193,5 +189,31 @@ describe("playback state adapter", () => {
     const nextState = applyPlaybackState(currentState, message);
 
     expect(nextState).toBe(currentState);
+  });
+  it("accepts a newer playback snapshot with the same version", () => {
+    const currentState = {
+      position: 100,
+      isPlaying: true,
+      version: 4,
+      updatedAt: "2026-01-01T12:00:00.000Z",
+      serverTime: "2026-01-01T12:00:05.000Z",
+    };
+
+    const message = {
+      type: "playback:state",
+      position: 100,
+      isPlaying: true,
+      version: 4,
+      updatedAt: "2026-01-01T12:00:00.000Z",
+      serverTime: "2026-01-01T12:00:15.000Z",
+    };
+
+    const nextState = applyPlaybackState(currentState, message);
+
+    expect(nextState).not.toBe(currentState);
+
+    expect(nextState.version).toBe(4);
+    expect(nextState.isPlaying).toBe(true);
+    expect(nextState.serverTime).toBe(message.serverTime);
   });
 });

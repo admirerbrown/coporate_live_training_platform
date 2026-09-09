@@ -51,3 +51,9 @@ This ensures the database integration test files execute sequentially while each
 ### Key Lesson
 
 When integration tests share mutable external state such as a database, parallel test execution can introduce race conditions and produce misleading failures. Test isolation must account not only for individual tests, but also for interactions between test suites.
+
+
+known issues as of 09/09/26
+so there are 3 issues i need you to fix. when an instructors refreshes their page whiles a session is ongoing they have to click pause and then play again to be in sync with other players on the sessiion. 2. when participant late join, their media starts from the start note current play position of the other players. 3 . when participants refresh, their media dont autoplay so the instructor has to click pause and then play again for everyone to have their media playing or in sync.
+
+this is fraustrating.  see the attached zip file for the full code.

@@ -1,3 +1,4 @@
+
 import { useEffect, useRef, useState } from "react";
 
 import {
@@ -26,12 +27,12 @@ export default function YouTubePlayer({
   // async callbacks such as YouTube's onReady.
   const playbackRef = useRef(playback);
 
+  const [loadError, setLoadError] =
+    useState(null);
+
   useEffect(() => {
     playbackRef.current = playback;
   }, [playback]);
-
-  const [loadError, setLoadError] =
-    useState(null);
 
   const videoId =
     getYouTubeVideoId(videoUrl);
@@ -124,13 +125,6 @@ export default function YouTubePlayer({
                   event.target,
                   playbackRef.current,
                 );
-              },
-
-              onAutoplayBlocked() {
-                // Browser autoplay policies may
-                // block scripted playback. The
-                // player remains available for
-                // later permitted playback.
               },
             },
           },
@@ -247,4 +241,5 @@ export default function YouTubePlayer({
       )}
     </section>
   );
-};
+}
+;

@@ -1,9 +1,17 @@
-import { useEffect, useRef, useState } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 
-import { createWebSocketClient } from "../websocket/client";
+import {
+  createWebSocketClient,
+} from "../websocket/client";
+
 import {
   createAuthenticationClient,
 } from "../websocket/authentication";
+
 import {
   createSessionClient,
 } from "../session/sessionClient";
@@ -13,7 +21,9 @@ export function useTrainingSession({
   instructorToken,
   websocketBaseUrl,
 }) {
-  const sessionClientRef = useRef(null);
+  const sessionClientRef =
+    useRef(null);
+
   const previousConnectionStatusRef =
     useRef("disconnected");
 
@@ -30,36 +40,42 @@ export function useTrainingSession({
   });
 
   useEffect(() => {
-    const socketClient = createWebSocketClient({
-      baseUrl: websocketBaseUrl,
-      sessionId,
-    });
+    const socketClient =
+      createWebSocketClient({
+        baseUrl: websocketBaseUrl,
+        sessionId,
+      });
 
     const authenticationClient =
       createAuthenticationClient({
         socketClient,
       });
 
-    const sessionClient = createSessionClient({
-      socketClient,
-      authenticationClient,
-    });
+    const sessionClient =
+      createSessionClient({
+        socketClient,
+        authenticationClient,
+      });
 
-    sessionClientRef.current = sessionClient;
-
+    sessionClientRef.current =
+      sessionClient;
 
     const unsubscribe =
-      sessionClient.onStateChange((nextState) => {
-        setState(nextState);
-      });
+      sessionClient.onStateChange(
+        (nextState) => {
+          setState(nextState);
+        },
+      );
 
     sessionClient.connect();
 
     return () => {
       unsubscribe();
+
       sessionClient.destroy();
 
       sessionClientRef.current = null;
+
       previousConnectionStatusRef.current =
         "disconnected";
     };
@@ -69,12 +85,14 @@ export function useTrainingSession({
   ]);
 
   useEffect(() => {
-    const sessionClient = sessionClientRef.current;
+    const sessionClient =
+      sessionClientRef.current;
 
     if (
       !sessionClient ||
       !instructorToken ||
-      state.connectionStatus !== "connected"
+      state.connectionStatus !==
+        "connected"
     ) {
       previousConnectionStatusRef.current =
         state.connectionStatus;
@@ -111,8 +129,16 @@ export function useTrainingSession({
 
   function send(message) {
     return sessionClientRef.current
-      ? sessionClientRef.current.send(message)
+      ? sessionClientRef.current.send(
+          message,
+        )
       : false;
+  }
+
+  function requestPlaybackState() {
+    return send({
+      type: "playback:request-state",
+    });
   }
 
   function disconnect() {
@@ -123,10 +149,36 @@ export function useTrainingSession({
     sessionClientRef.current?.connect();
   }
 
+  useEffect(() => {
+    function handleVisibilityChange() {
+      if (
+        document.visibilityState !==
+        "visible"
+      ) {
+        return;
+      }
+
+      requestPlaybackState();
+    }
+
+    document.addEventListener(
+      "visibilitychange",
+      handleVisibilityChange,
+    );
+
+    return () => {
+      document.removeEventListener(
+        "visibilitychange",
+        handleVisibilityChange,
+      );
+    };
+  }, []);
+
   return {
     ...state,
     connect,
     disconnect,
     send,
+    requestPlaybackState,
   };
 }

@@ -1,12 +1,6 @@
 import "dotenv/config";
 
-import {
-  describe,
-  it,
-  expect,
-  beforeEach,
-  afterEach,
-} from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 
 import WebSocket from "ws";
 import http from "http";
@@ -85,11 +79,7 @@ describe("WebSocket playback broadcasting", () => {
         VALUES ($1, $2, $3, 'LIVE')
         RETURNING id, instructor_token
       `,
-      [
-        name,
-        "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
-        instructorToken,
-      ],
+      [name, "https://www.youtube.com/watch?v=dQw4w9WgXcQ", instructorToken],
     );
 
     const session = result.rows[0];
@@ -108,9 +98,7 @@ describe("WebSocket playback broadcasting", () => {
   }
 
   async function connect(sessionId) {
-    const socket = new WebSocket(
-      `${baseUrl}?sessionId=${sessionId}`,
-    );
+    const socket = new WebSocket(`${baseUrl}?sessionId=${sessionId}`);
 
     sockets.push(socket);
 
@@ -191,13 +179,9 @@ describe("WebSocket playback broadcasting", () => {
     expect(message.updatedAt).toBeTruthy();
     expect(message.serverTime).toBeTruthy();
 
-    expect(
-      Number.isNaN(Date.parse(message.updatedAt)),
-    ).toBe(false);
+    expect(Number.isNaN(Date.parse(message.updatedAt))).toBe(false);
 
-    expect(
-      Number.isNaN(Date.parse(message.serverTime)),
-    ).toBe(false);
+    expect(Number.isNaN(Date.parse(message.serverTime))).toBe(false);
   }
 
   it("broadcasts playback state to the instructor and two participants in the same session", async () => {
@@ -207,10 +191,7 @@ describe("WebSocket playback broadcasting", () => {
     const { socket: participantA } = await connect(session.id);
     const { socket: participantB } = await connect(session.id);
 
-    await authenticate(
-      instructor,
-      session.instructor_token,
-    );
+    await authenticate(instructor, session.instructor_token);
 
     const instructorState = nextMessage(instructor);
     const participantAState = nextMessage(participantA);
@@ -236,21 +217,13 @@ describe("WebSocket playback broadcasting", () => {
       });
     }
 
-    expect(messages[0].updatedAt).toBe(
-      messages[1].updatedAt,
-    );
+    expect(messages[0].updatedAt).toBe(messages[1].updatedAt);
 
-    expect(messages[1].updatedAt).toBe(
-      messages[2].updatedAt,
-    );
+    expect(messages[1].updatedAt).toBe(messages[2].updatedAt);
 
-    expect(messages[0].serverTime).toBe(
-      messages[1].serverTime,
-    );
+    expect(messages[0].serverTime).toBe(messages[1].serverTime);
 
-    expect(messages[1].serverTime).toBe(
-      messages[2].serverTime,
-    );
+    expect(messages[1].serverTime).toBe(messages[2].serverTime);
   });
 
   it("does not broadcast session A playback changes to session B", async () => {
@@ -268,14 +241,9 @@ describe("WebSocket playback broadcasting", () => {
     const { socket: participantA } = await connect(sessionA.id);
     const { socket: participantB } = await connect(sessionB.id);
 
-    await authenticate(
-      instructorA,
-      sessionA.instructor_token,
-    );
+    await authenticate(instructorA, sessionA.instructor_token);
 
-    const participantAMessage = nextMessage(
-      participantA,
-    );
+    const participantAMessage = nextMessage(participantA);
 
     let sessionBReceived = false;
 
@@ -314,10 +282,7 @@ describe("WebSocket playback broadcasting", () => {
     const { socket: instructor } = await connect(session.id);
     const { socket: participant } = await connect(session.id);
 
-    await authenticate(
-      instructor,
-      session.instructor_token,
-    );
+    await authenticate(instructor, session.instructor_token);
 
     const participantState = nextMessage(participant);
 
@@ -343,10 +308,7 @@ describe("WebSocket playback broadcasting", () => {
     const { socket: participantA } = await connect(session.id);
     const { socket: participantB } = await connect(session.id);
 
-    await authenticate(
-      instructor,
-      session.instructor_token,
-    );
+    await authenticate(instructor, session.instructor_token);
 
     participantA.close();
 
@@ -362,10 +324,7 @@ describe("WebSocket playback broadcasting", () => {
       }),
     );
 
-    const [
-      instructorMessage,
-      participantBMessage,
-    ] = await Promise.all([
+    const [instructorMessage, participantBMessage] = await Promise.all([
       instructorState,
       participantBState,
     ]);
@@ -382,13 +341,9 @@ describe("WebSocket playback broadcasting", () => {
       version: 1,
     });
 
-    expect(
-      instructorMessage.updatedAt,
-    ).toBe(participantBMessage.updatedAt);
+    expect(instructorMessage.updatedAt).toBe(participantBMessage.updatedAt);
 
-    expect(
-      instructorMessage.serverTime,
-    ).toBe(participantBMessage.serverTime);
+    expect(instructorMessage.serverTime).toBe(participantBMessage.serverTime);
   });
 
   it("persists the updated playback state before broadcasting it", async () => {
@@ -397,10 +352,7 @@ describe("WebSocket playback broadcasting", () => {
     const { socket: instructor } = await connect(session.id);
     const { socket: participant } = await connect(session.id);
 
-    await authenticate(
-      instructor,
-      session.instructor_token,
-    );
+    await authenticate(instructor, session.instructor_token);
 
     const participantState = nextMessage(participant);
 
@@ -441,14 +393,195 @@ describe("WebSocket playback broadcasting", () => {
       updated_at: expect.any(Date),
     });
 
-    expect(message.updatedAt).toBe(
-      result.rows[0].updated_at.toISOString(),
-    );
+    expect(message.updatedAt).toBe(result.rows[0].updated_at.toISOString());
 
-    expect(
-      Date.parse(message.updatedAt),
-    ).toBeLessThanOrEqual(
+    expect(Date.parse(message.updatedAt)).toBeLessThanOrEqual(
       Date.parse(message.serverTime),
     );
+  });
+
+  it("broadcasts session:ended and closes all connected clients", async () => {
+    const session = await createLiveSession();
+
+    const { socket: instructor } = await connect(session.id);
+
+    const { socket: participantA } = await connect(session.id);
+
+    const { socket: participantB } = await connect(session.id);
+
+    await authenticate(instructor, session.instructor_token);
+
+    await pool.query(
+      `
+        UPDATE training_sessions
+        SET status = 'ENDED'
+        WHERE id = $1
+      `,
+      [session.id],
+    );
+
+    const instructorEnded = nextMessage(instructor);
+
+    const participantAEnded = nextMessage(participantA);
+
+    const participantBEnded = nextMessage(participantB);
+
+    instructor.send(
+      JSON.stringify({
+        type: "session:end",
+      }),
+    );
+
+    const [instructorMessage, participantAMessage, participantBMessage] =
+      await Promise.all([
+        instructorEnded,
+        participantAEnded,
+        participantBEnded,
+      ]);
+
+    expect(instructorMessage).toEqual({
+      type: "session:ended",
+    });
+
+    expect(participantAMessage).toEqual({
+      type: "session:ended",
+    });
+
+    expect(participantBMessage).toEqual({
+      type: "session:ended",
+    });
+
+    await Promise.all([
+      waitForClose(instructor),
+      waitForClose(participantA),
+      waitForClose(participantB),
+    ]);
+  });
+  it("returns the current playback state only to the requesting client", async () => {
+    const session = await createLiveSession();
+
+    const { socket: participantA } = await connect(session.id);
+
+    const { socket: participantB } = await connect(session.id);
+
+    await pool.query(
+      `
+      UPDATE session_playback_state
+      SET
+        position = $1,
+        is_playing = $2,
+        version = $3,
+        updated_at = now()
+      WHERE session_id = $4
+    `,
+      [120, true, 7, session.id],
+    );
+
+    let participantBReceived = false;
+
+    const onParticipantBMessage = (data) => {
+      const message = JSON.parse(data.toString());
+
+      if (message.type === "playback:state") {
+        participantBReceived = true;
+      }
+    };
+
+    participantB.on("message", onParticipantBMessage);
+
+    participantA.send(
+      JSON.stringify({
+        type: "playback:request-state",
+      }),
+    );
+
+    const message = await nextMessage(participantA);
+
+    expectValidPlaybackState(message, {
+      position: 120,
+      isPlaying: true,
+      version: 7,
+    });
+
+    await new Promise((resolve) => {
+      setTimeout(resolve, 50);
+    });
+
+    participantB.off("message", onParticipantBMessage);
+
+    expect(participantBReceived).toBe(false);
+  });
+
+  it("returns fresh playback state only to the requesting client", async () => {
+    const session = await createLiveSession();
+
+    const { socket: participantA } = await connect(session.id);
+
+    const { socket: participantB } = await connect(session.id);
+
+    await pool.query(
+      `
+        UPDATE session_playback_state
+        SET
+          position = $1,
+          is_playing = $2,
+          version = $3,
+          updated_at = now()
+        WHERE session_id = $4
+      `,
+      [120, true, 7, session.id],
+    );
+
+    let participantBReceived = false;
+
+    const handleParticipantBMessage = (data) => {
+      const message = JSON.parse(data.toString());
+
+      if (message.type === "playback:state") {
+        participantBReceived = true;
+      }
+    };
+
+    participantB.on("message", handleParticipantBMessage);
+
+    participantA.send(
+      JSON.stringify({
+        type: "playback:request-state",
+      }),
+    );
+
+    const message = await nextMessage(participantA);
+
+    expectValidPlaybackState(message, {
+      position: 120,
+      isPlaying: true,
+      version: 7,
+    });
+
+    const result = await pool.query(
+      `
+        SELECT
+          position,
+          is_playing,
+          version
+        FROM session_playback_state
+        WHERE session_id = $1
+      `,
+      [session.id],
+    );
+
+    expect(result.rows[0]).toEqual({
+      position: "120",
+      is_playing: true,
+      version: 7,
+    });
+
+    await new Promise((resolve) => {
+      setTimeout(resolve, 50);
+    });
+
+    participantB.off("message", handleParticipantBMessage);
+
+    expect(participantBReceived).toBe(false);
   });
 });

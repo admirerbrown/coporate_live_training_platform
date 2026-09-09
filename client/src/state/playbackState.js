@@ -24,11 +24,26 @@ export function applyPlaybackState(
     return currentState;
   }
 
-  if (message.version <= currentState.version) {
+  if (
+    message.version <
+    currentState.version
+  ) {
     return currentState;
   }
 
-  const position = calculateEffectivePosition(message);
+  if (
+    message.version ===
+      currentState.version &&
+    !isNewerServerTime(
+      currentState.serverTime,
+      message.serverTime,
+    )
+  ) {
+    return currentState;
+  }
+
+  const position =
+    calculateEffectivePosition(message);
 
   return {
     position,
@@ -39,7 +54,35 @@ export function applyPlaybackState(
   };
 }
 
-function isValidPlaybackStateMessage(message) {
+function isNewerServerTime(
+  currentServerTime,
+  incomingServerTime,
+) {
+  if (!currentServerTime) {
+    return true;
+  }
+
+  const currentTime = Date.parse(
+    currentServerTime,
+  );
+
+  const incomingTime = Date.parse(
+    incomingServerTime,
+  );
+
+  if (
+    Number.isNaN(currentTime) ||
+    Number.isNaN(incomingTime)
+  ) {
+    return false;
+  }
+
+  return incomingTime > currentTime;
+}
+
+function isValidPlaybackStateMessage(
+  message,
+) {
   if (
     message === null ||
     typeof message !== "object" ||
@@ -48,34 +91,47 @@ function isValidPlaybackStateMessage(message) {
     return false;
   }
 
-  if (message.type !== "playback:state") {
-    return false;
-  }
-
   if (
-    typeof message.position !== "number" ||
-    !Number.isFinite(message.position)
+    message.type !==
+    "playback:state"
   ) {
     return false;
   }
 
-  if (typeof message.isPlaying !== "boolean") {
+  if (
+    typeof message.position !==
+      "number" ||
+    !Number.isFinite(
+      message.position,
+    )
+  ) {
     return false;
   }
 
   if (
-    !Number.isInteger(message.version) ||
+    typeof message.isPlaying !==
+    "boolean"
+  ) {
+    return false;
+  }
+
+  if (
+    !Number.isInteger(
+      message.version,
+    ) ||
     message.version < 0
   ) {
     return false;
   }
 
   if (
-    typeof message.updatedAt !== "string" ||
-    typeof message.serverTime !== "string"
+    typeof message.updatedAt !==
+      "string" ||
+    typeof message.serverTime !==
+      "string"
   ) {
     return false;
   }
 
   return true;
-}
+};

@@ -1,31 +1,24 @@
-import 'dotenv/config';
+import "dotenv/config";
 
-import {
-  describe,
-  it,
-  expect,
-  beforeEach,
-  afterEach,
-  afterAll
-} from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, afterAll } from "vitest";
 
-import WebSocket from 'ws';
-import http from 'http';
+import WebSocket from "ws";
+import http from "http";
 
-import { app } from '../../src/app';
-import pool from '../../src/db/pool';
-import { attachWebSocketServer } from '../../src/websocket';
+import { app } from "../../src/app";
+import pool from "../../src/db/pool";
+import { attachWebSocketServer } from "../../src/websocket";
 
-describe('WebSocket authentication', () => {
+describe("WebSocket authentication", () => {
   let server;
   let wss;
   let sockets;
   let baseUrl;
 
   beforeEach(async () => {
-    await pool.query('DELETE FROM session_participants');
-    await pool.query('DELETE FROM session_playback_state');
-    await pool.query('DELETE FROM training_sessions');
+    await pool.query("DELETE FROM session_participants");
+    await pool.query("DELETE FROM session_playback_state");
+    await pool.query("DELETE FROM training_sessions");
 
     server = http.createServer(app);
     wss = attachWebSocketServer(server, pool);
@@ -70,9 +63,9 @@ describe('WebSocket authentication', () => {
   // ---------------------------------------------------------------------
 
   async function createLiveSession({
-    name = 'Test Session',
-    youtubeUrl = 'https://www.youtube.com/watch?v=test123',
-    instructorToken = 'test-instructor-token'
+    name = "Test Session",
+    youtubeUrl = "https://www.youtube.com/watch?v=test123",
+    instructorToken = "test-instructor-token",
   } = {}) {
     const sessionResult = await pool.query(
       `
@@ -85,7 +78,7 @@ describe('WebSocket authentication', () => {
         VALUES ($1, $2, $3, 'LIVE')
         RETURNING id
       `,
-      [name, youtubeUrl, instructorToken]
+      [name, youtubeUrl, instructorToken],
     );
 
     const sessionId = sessionResult.rows[0].id;
@@ -97,7 +90,7 @@ describe('WebSocket authentication', () => {
         )
         VALUES ($1)
       `,
-      [sessionId]
+      [sessionId],
     );
 
     return { sessionId, instructorToken };
@@ -108,13 +101,13 @@ describe('WebSocket authentication', () => {
     sockets.push(socket);
 
     await new Promise((resolve, reject) => {
-      socket.once('open', resolve);
-      socket.once('error', reject);
+      socket.once("open", resolve);
+      socket.once("error", reject);
     });
 
     const initialMessage = await new Promise((resolve, reject) => {
-      socket.once('message', (data) => resolve(JSON.parse(data.toString())));
-      socket.once('error', reject);
+      socket.once("message", (data) => resolve(JSON.parse(data.toString())));
+      socket.once("error", reject);
     });
 
     return { socket, initialMessage };
@@ -122,13 +115,13 @@ describe('WebSocket authentication', () => {
 
   function nextMessage(socket) {
     return new Promise((resolve, reject) => {
-      socket.once('message', (data) => resolve(JSON.parse(data.toString())));
-      socket.once('error', reject);
+      socket.once("message", (data) => resolve(JSON.parse(data.toString())));
+      socket.once("error", reject);
     });
   }
 
   function authenticate(socket, token) {
-    socket.send(JSON.stringify({ type: 'auth', token }));
+    socket.send(JSON.stringify({ type: "auth", token }));
     return nextMessage(socket);
   }
 
@@ -136,115 +129,115 @@ describe('WebSocket authentication', () => {
   // Handshake
   // ---------------------------------------------------------------------
 
-  it('sends a valid initial playback-state message on connect', async () => {
+  it("sends a valid initial playback-state message on connect", async () => {
     const { sessionId } = await createLiveSession();
     const { initialMessage } = await connect(sessionId);
 
     expect(initialMessage).toMatchObject({
-      type: 'playback:state',
+      type: "playback:state",
       position: 0,
-      isPlaying: false
+      isPlaying: false,
     });
   });
 
-  it('authenticates an instructor with the correct session token', async () => {
+  it("authenticates an instructor with the correct session token", async () => {
     const { sessionId, instructorToken } = await createLiveSession({
-      name: 'Authentication Test Session',
-      instructorToken: 'session-a-instructor-token'
+      name: "Authentication Test Session",
+      instructorToken: "session-a-instructor-token",
     });
 
     const { socket } = await connect(sessionId);
     const message = await authenticate(socket, instructorToken);
 
-    expect(message).toEqual({ type: 'auth:success' });
+    expect(message).toEqual({ type: "auth:success" });
   });
 
-  it('rejects an invalid instructor token', async () => {
+  it("rejects an invalid instructor token", async () => {
     const { sessionId } = await createLiveSession({
-      name: 'Invalid Token Test Session',
-      instructorToken: 'correct-instructor-token'
+      name: "Invalid Token Test Session",
+      instructorToken: "correct-instructor-token",
     });
 
     const { socket } = await connect(sessionId);
-    const message = await authenticate(socket, 'wrong-instructor-token');
+    const message = await authenticate(socket, "wrong-instructor-token");
 
-    expect(message).toEqual({ type: 'auth:error', code: 'INVALID_TOKEN' });
+    expect(message).toEqual({ type: "auth:error", code: "INVALID_TOKEN" });
   });
 
-  it('rejects a valid instructor token belonging to another session', async () => {
+  it("rejects a valid instructor token belonging to another session", async () => {
     await createLiveSession({
-      name: 'First Session',
-      youtubeUrl: 'https://www.youtube.com/watch?v=first123',
-      instructorToken: 'first-session-token'
+      name: "First Session",
+      youtubeUrl: "https://www.youtube.com/watch?v=first123",
+      instructorToken: "first-session-token",
     });
 
     const { sessionId: secondSessionId } = await createLiveSession({
-      name: 'Second Session',
-      youtubeUrl: 'https://www.youtube.com/watch?v=second123',
-      instructorToken: 'second-session-token'
+      name: "Second Session",
+      youtubeUrl: "https://www.youtube.com/watch?v=second123",
+      instructorToken: "second-session-token",
     });
 
     const { socket } = await connect(secondSessionId);
 
     // This token is valid, but belongs to the first session.
-    const message = await authenticate(socket, 'first-session-token');
+    const message = await authenticate(socket, "first-session-token");
 
-    expect(message).toEqual({ type: 'auth:error', code: 'INVALID_TOKEN' });
+    expect(message).toEqual({ type: "auth:error", code: "INVALID_TOKEN" });
   });
 
-  it('rejects an auth message with no token', async () => {
+  it("rejects an auth message with no token", async () => {
     const { sessionId } = await createLiveSession();
     const { socket } = await connect(sessionId);
 
-    socket.send(JSON.stringify({ type: 'auth' }));
+    socket.send(JSON.stringify({ type: "auth" }));
     const message = await nextMessage(socket);
 
-    expect(message).toEqual({ type: 'auth:error', code: 'INVALID_TOKEN' });
+    expect(message).toEqual({ type: "auth:error", code: "INVALID_TOKEN" });
   });
 
   // ---------------------------------------------------------------------
   // Authorization gate
   // ---------------------------------------------------------------------
 
-  it('rejects a play command from a connection that never authenticated', async () => {
+  it("rejects a play command from a connection that never authenticated", async () => {
     const { sessionId } = await createLiveSession();
     const { socket } = await connect(sessionId);
 
-    socket.send(JSON.stringify({ type: 'playback:play' }));
+    socket.send(JSON.stringify({ type: "playback:play" }));
     const message = await nextMessage(socket);
 
-    expect(message).toEqual({ type: 'playback:error', code: 'UNAUTHORIZED' });
+    expect(message).toEqual({ type: "playback:error", code: "UNAUTHORIZED" });
   });
 
-  it('rejects a play command sent after a failed authentication attempt', async () => {
+  it("rejects a play command sent after a failed authentication attempt", async () => {
     const { sessionId } = await createLiveSession({
-      instructorToken: 'correct-instructor-token'
+      instructorToken: "correct-instructor-token",
     });
 
     const { socket } = await connect(sessionId);
-    await authenticate(socket, 'wrong-instructor-token');
+    await authenticate(socket, "wrong-instructor-token");
 
-    socket.send(JSON.stringify({ type: 'playback:play' }));
+    socket.send(JSON.stringify({ type: "playback:play" }));
     const message = await nextMessage(socket);
 
-    expect(message).toEqual({ type: 'playback:error', code: 'UNAUTHORIZED' });
+    expect(message).toEqual({ type: "playback:error", code: "UNAUTHORIZED" });
   });
 
-  it('accepts a play command after successful instructor authentication', async () => {
+  it("accepts a play command after successful instructor authentication", async () => {
     const { sessionId, instructorToken } = await createLiveSession();
     const { socket } = await connect(sessionId);
 
     await authenticate(socket, instructorToken);
 
-    socket.send(JSON.stringify({ type: 'playback:play' }));
+    socket.send(JSON.stringify({ type: "playback:play" }));
     const message = await nextMessage(socket);
 
     // The complete playback-state response is tested in play.test.js.
     // This test only verifies that authentication grants control access.
-    expect(message.type).not.toBe('playback:error');
+    expect(message.type).not.toBe("playback:error");
   });
 
-  it('does not grant instructor rights to a second unauthenticated connection on the same session', async () => {
+  it("does not grant instructor rights to a second unauthenticated connection on the same session", async () => {
     const { sessionId, instructorToken } = await createLiveSession();
 
     const { socket: instructorSocket } = await connect(sessionId);
@@ -252,13 +245,13 @@ describe('WebSocket authentication', () => {
 
     const { socket: participantSocket } = await connect(sessionId);
 
-    participantSocket.send(JSON.stringify({ type: 'playback:play' }));
+    participantSocket.send(JSON.stringify({ type: "playback:play" }));
     const message = await nextMessage(participantSocket);
 
-    expect(message).toEqual({ type: 'playback:error', code: 'UNAUTHORIZED' });
+    expect(message).toEqual({ type: "playback:error", code: "UNAUTHORIZED" });
   });
 
-  it('does not let a new connection inherit instructor rights after an authenticated connection disconnects', async () => {
+  it("does not let a new connection inherit instructor rights after an authenticated connection disconnects", async () => {
     const { sessionId, instructorToken } = await createLiveSession();
 
     const { socket: firstInstructorSocket } = await connect(sessionId);
@@ -267,15 +260,14 @@ describe('WebSocket authentication', () => {
 
     const { socket: newSocket } = await connect(sessionId);
 
-    newSocket.send(JSON.stringify({ type: 'playback:play' }));
+    newSocket.send(JSON.stringify({ type: "playback:play" }));
     const message = await nextMessage(newSocket);
 
-    expect(message).toEqual({ type: 'playback:error', code: 'UNAUTHORIZED' });
+    expect(message).toEqual({ type: "playback:error", code: "UNAUTHORIZED" });
   });
 
-    it("rejects all playback commands when the session is not live", async () => {
-    const { sessionId, instructorToken } =
-      await createLiveSession();
+  it("rejects all playback commands when the session is not live", async () => {
+    const { sessionId, instructorToken } = await createLiveSession();
 
     await pool.query(
       `
@@ -288,10 +280,7 @@ describe('WebSocket authentication', () => {
 
     const { socket } = await connect(sessionId);
 
-    await authenticate(
-      socket,
-      instructorToken,
-    );
+    await authenticate(socket, instructorToken);
 
     const commands = [
       {
@@ -307,12 +296,9 @@ describe('WebSocket authentication', () => {
     ];
 
     for (const command of commands) {
-      socket.send(
-        JSON.stringify(command),
-      );
+      socket.send(JSON.stringify(command));
 
-      const message =
-        await nextMessage(socket);
+      const message = await nextMessage(socket);
 
       expect(message).toEqual({
         type: "playback:error",
@@ -340,18 +326,11 @@ describe('WebSocket authentication', () => {
   });
 
   it("rejects playback commands when a live session becomes ended after the instructor connects", async () => {
-    const {
-      sessionId,
-      instructorToken,
-    } = await createLiveSession();
+    const { sessionId, instructorToken } = await createLiveSession();
 
-    const { socket } =
-      await connect(sessionId);
+    const { socket } = await connect(sessionId);
 
-    await authenticate(
-      socket,
-      instructorToken,
-    );
+    await authenticate(socket, instructorToken);
 
     await pool.query(
       `
@@ -368,8 +347,7 @@ describe('WebSocket authentication', () => {
       }),
     );
 
-    const message =
-      await nextMessage(socket);
+    const message = await nextMessage(socket);
 
     expect(message).toEqual({
       type: "playback:error",
@@ -392,6 +370,45 @@ describe('WebSocket authentication', () => {
       position: "0",
       is_playing: false,
       version: 0,
+    });
+  });
+  it("rejects session:end from an unauthenticated connection", async () => {
+    const { sessionId } = await createLiveSession();
+
+    const { socket } = await connect(sessionId);
+
+    socket.send(
+      JSON.stringify({
+        type: "session:end",
+      }),
+    );
+
+    const message = await nextMessage(socket);
+
+    expect(message).toEqual({
+      type: "session:error",
+      code: "UNAUTHORIZED",
+    });
+  });
+
+  it("rejects session:end when the session has not ended yet", async () => {
+    const { sessionId, instructorToken } = await createLiveSession();
+
+    const { socket } = await connect(sessionId);
+
+    await authenticate(socket, instructorToken);
+
+    socket.send(
+      JSON.stringify({
+        type: "session:end",
+      }),
+    );
+
+    const message = await nextMessage(socket);
+
+    expect(message).toEqual({
+      type: "session:error",
+      code: "SESSION_NOT_ENDED",
     });
   });
 });

@@ -4,43 +4,26 @@ import { useTrainingSession } from "../hooks/useTrainingSession";
 
 import YouTubePlayer from "../components/player/YouTubePlayer";
 
-import {
-  endSession,
-  startSession,
-} from "../api/sessions";
+import { endSession, startSession } from "../api/sessions";
 
-export default function InstructorSessionPage({
-  session,
-}) {
-  const {
-    connectionStatus,
-    role,
-    playback,
-    send,
-  } = useTrainingSession({
+export default function InstructorSessionPage({ session }) {
+  const { connectionStatus, role, playback, send } = useTrainingSession({
     sessionId: session.id,
     instructorToken: session.instructorToken,
-    websocketBaseUrl:
-      import.meta.env.VITE_WS_BASE_URL,
+    websocketBaseUrl: import.meta.env.VITE_WS_BASE_URL,
   });
 
-  const [sessionStatus, setSessionStatus] =
-    useState(session.status);
+  const [sessionStatus, setSessionStatus] = useState(session.status);
 
-  const [seekPosition, setSeekPosition] =
-    useState(playback.position);
+  const [seekPosition, setSeekPosition] = useState(playback.position);
 
-  const [lifecycleError, setLifecycleError] =
-    useState(null);
+  const [lifecycleError, setLifecycleError] = useState(null);
 
-  const [isStarting, setIsStarting] =
-    useState(false);
+  const [isStarting, setIsStarting] = useState(false);
 
-  const [isEnding, setIsEnding] =
-    useState(false);
+  const [isEnding, setIsEnding] = useState(false);
 
-  const [copyStatus, setCopyStatus] =
-    useState("Copy join link");
+  const [copyStatus, setCopyStatus] = useState("Copy join link");
 
   const statusLabel =
     {
@@ -49,20 +32,13 @@ export default function InstructorSessionPage({
       ENDED: "Ended",
     }[sessionStatus] ?? "Unknown";
 
-  const canStart =
-    role === "instructor" &&
-    sessionStatus === "CREATED";
+  const canStart = role === "instructor" && sessionStatus === "CREATED";
 
-  const canEnd =
-    role === "instructor" &&
-    sessionStatus === "LIVE";
+  const canEnd = role === "instructor" && sessionStatus === "LIVE";
 
-  const canControlPlayback =
-    role === "instructor" &&
-    sessionStatus === "LIVE";
+  const canControlPlayback = role === "instructor" && sessionStatus === "LIVE";
 
-  const joinLink =
-    `${window.location.origin}/sessions/${session.id}/join`;
+  const joinLink = `${window.location.origin}/sessions/${session.id}/join`;
 
   async function handleStart() {
     if (!canStart || isStarting) {
@@ -73,20 +49,15 @@ export default function InstructorSessionPage({
     setLifecycleError(null);
 
     try {
-      const updatedSession =
-        await startSession(
-          session.id,
-          session.instructorToken,
-        );
-
-      setSessionStatus(
-        updatedSession.status,
+      const updatedSession = await startSession(
+        session.id,
+        session.instructorToken,
       );
+
+      setSessionStatus(updatedSession.status);
     } catch (error) {
       setLifecycleError(
-        error instanceof Error
-          ? error.message
-          : "Failed to start session",
+        error instanceof Error ? error.message : "Failed to start session",
       );
     } finally {
       setIsStarting(false);
@@ -102,20 +73,22 @@ export default function InstructorSessionPage({
     setLifecycleError(null);
 
     try {
-      const updatedSession =
-        await endSession(
-          session.id,
-          session.instructorToken,
-        );
-
-      setSessionStatus(
-        updatedSession.status,
+      const updatedSession = await endSession(
+        session.id,
+        session.instructorToken,
       );
+
+      setSessionStatus(updatedSession.status);
+
+      // Tell the WebSocket server that the
+      // session has ended. The server will
+      // notify and close connected clients.
+      send({
+        type: "session:end",
+      });
     } catch (error) {
       setLifecycleError(
-        error instanceof Error
-          ? error.message
-          : "Failed to end session",
+        error instanceof Error ? error.message : "Failed to end session",
       );
     } finally {
       setIsEnding(false);
@@ -124,9 +97,7 @@ export default function InstructorSessionPage({
 
   async function handleCopyJoinLink() {
     try {
-      await navigator.clipboard.writeText(
-        joinLink,
-      );
+      await navigator.clipboard.writeText(joinLink);
 
       setCopyStatus("Copied!");
 
@@ -169,10 +140,7 @@ export default function InstructorSessionPage({
 
     const position = Number(seekPosition);
 
-    if (
-      !Number.isFinite(position) ||
-      position < 0
-    ) {
+    if (!Number.isFinite(position) || position < 0) {
       return;
     }
 
@@ -193,36 +161,26 @@ export default function InstructorSessionPage({
         <h1>{session.name}</h1>
 
         <p>
-          Session ID:{" "}
-          <strong>{session.id}</strong>
+          Session ID: <strong>{session.id}</strong>
         </p>
 
         <p>
-          Connection:{" "}
-          <strong>{connectionStatus}</strong>
+          Connection: <strong>{connectionStatus}</strong>
         </p>
       </header>
 
       <section aria-label="Session controls">
         <h2>Session Controls</h2>
 
-        {lifecycleError && (
-          <div role="alert">
-            {lifecycleError}
-          </div>
-        )}
+        {lifecycleError && <div role="alert">{lifecycleError}</div>}
 
         {sessionStatus === "CREATED" && (
           <button
             type="button"
             onClick={handleStart}
-            disabled={
-              !canStart || isStarting
-            }
+            disabled={!canStart || isStarting}
           >
-            {isStarting
-              ? "Starting Session..."
-              : "Start Session"}
+            {isStarting ? "Starting Session..." : "Start Session"}
           </button>
         )}
 
@@ -230,13 +188,9 @@ export default function InstructorSessionPage({
           <button
             type="button"
             onClick={handleEnd}
-            disabled={
-              !canEnd || isEnding
-            }
+            disabled={!canEnd || isEnding}
           >
-            {isEnding
-              ? "Ending Session..."
-              : "End Session"}
+            {isEnding ? "Ending Session..." : "End Session"}
           </button>
         )}
       </section>
@@ -252,25 +206,19 @@ export default function InstructorSessionPage({
             aria-label="Participant join link"
           />
 
-          <button
-            type="button"
-            onClick={handleCopyJoinLink}
-          >
+          <button type="button" onClick={handleCopyJoinLink}>
             {copyStatus}
           </button>
         </div>
 
         <p>
-          Share this link with participants so
-          they can join the training session.
+          Share this link with participants so they can join the training
+          session.
         </p>
       </section>
 
       <section aria-label="Training video">
-        <YouTubePlayer
-          videoUrl={session.youtubeUrl}
-          playback={playback}
-        />
+        <YouTubePlayer videoUrl={session.youtubeUrl} playback={playback} />
       </section>
 
       <section aria-label="Playback controls">
@@ -293,9 +241,7 @@ export default function InstructorSessionPage({
         </button>
 
         <div>
-          <label htmlFor="seek-position">
-            Seek position
-          </label>
+          <label htmlFor="seek-position">Seek position</label>
 
           <input
             id="seek-position"
@@ -303,11 +249,7 @@ export default function InstructorSessionPage({
             min="0"
             step="1"
             value={seekPosition}
-            onChange={(event) =>
-              setSeekPosition(
-                event.target.value,
-              )
-            }
+            onChange={(event) => setSeekPosition(event.target.value)}
             disabled={!canControlPlayback}
           />
 
@@ -322,9 +264,7 @@ export default function InstructorSessionPage({
       </section>
 
       {role !== "instructor" && (
-        <p role="status">
-          Instructor controls are unavailable.
-        </p>
+        <p role="status">Instructor controls are unavailable.</p>
       )}
     </main>
   );

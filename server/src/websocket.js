@@ -1,8 +1,15 @@
-const { WebSocketServer, WebSocket } = require("ws");
+const {
+  WebSocketServer,
+  WebSocket,
+} = require("ws");
 
-const { calculateEffectivePosition } = require("../../shared/playbackSync");
+const {
+  calculateEffectivePosition,
+} = require("../../shared/playbackSync");
 
-const { verifyInstructorToken } = require("./services/sessions");
+const {
+  verifyInstructorToken,
+} = require("./services/sessions");
 
 function attachWebSocketServer(server, db) {
   const connectionsBySession = new Map();
@@ -13,23 +20,61 @@ function attachWebSocketServer(server, db) {
       position: Number(state.position),
       isPlaying: state.is_playing,
       version: state.version,
-      updatedAt: new Date(state.updated_at).toISOString(),
+      updatedAt: new Date(
+        state.updated_at,
+      ).toISOString(),
       serverTime: new Date().toISOString(),
     };
   }
 
-  function broadcastPlaybackState(sessionId, state) {
-    const connections = connectionsBySession.get(sessionId);
+  function broadcastPlaybackState(
+    sessionId,
+    state,
+  ) {
+    const connections =
+      connectionsBySession.get(sessionId);
 
     if (!connections) {
       return;
     }
 
-    const message = JSON.stringify(createPlaybackStateMessage(state));
+    const message = JSON.stringify(
+      createPlaybackStateMessage(state),
+    );
 
     for (const socket of connections) {
-      if (socket.readyState === WebSocket.OPEN) {
+      if (
+        socket.readyState ===
+        WebSocket.OPEN
+      ) {
         socket.send(message);
+      }
+    }
+  }
+
+  function broadcastSessionEnded(sessionId) {
+    const connections =
+      connectionsBySession.get(sessionId);
+
+    if (!connections) {
+      return;
+    }
+
+    const message = JSON.stringify({
+      type: "session:ended",
+    });
+
+    for (const socket of connections) {
+      if (
+        socket.readyState ===
+        WebSocket.OPEN
+      ) {
+        socket.send(message);
+
+        socket.close(
+          1000,
+          "SESSION_ENDED",
+        );
       }
     }
   }
@@ -43,7 +88,9 @@ function attachWebSocketServer(server, db) {
     );
   }
 
-  async function getSessionPlaybackState(sessionId) {
+  async function getSessionPlaybackState(
+    sessionId,
+  ) {
     const result = await db.query(
       `
         SELECT
@@ -72,115 +119,305 @@ function attachWebSocketServer(server, db) {
     path: "/ws",
   });
 
-  wss.on("connection", async (ws, req) => {
-    const url = new URL(req.url, "http://localhost");
+  wss.on(
+    "connection",
+    async (ws, req) => {
+      const url = new URL(
+        req.url,
+        "http://localhost",
+      );
 
-    const sessionId = url.searchParams.get("sessionId");
+      const sessionId =
+        url.searchParams.get(
+          "sessionId",
+        );
 
-    ws.isInstructor = false;
+      ws.isInstructor = false;
 
-    if (!sessionId) {
-      ws.close();
-      return;
-    }
+      if (!sessionId) {
+        ws.close();
+        return;
+      }
 
-    const state = await getSessionPlaybackState(sessionId);
+      const state =
+        await getSessionPlaybackState(
+          sessionId,
+        );
 
-    if (!state) {
-      ws.close();
-      return;
-    }
+      if (!state) {
+        ws.close();
+        return;
+      }
 
-    if (state.status === "ENDED") {
-      sendError(ws, "session:error", "SESSION_ENDED");
+      if (state.status === "ENDED") {
+        sendError(
+          ws,
+          "session:error",
+          "SESSION_ENDED",
+        );
 
-      ws.close();
-      return;
-    }
+        ws.close();
+        return;
+      }
 
-    if (!connectionsBySession.has(sessionId)) {
-      connectionsBySession.set(sessionId, new Set());
-    }
+      if (
+        !connectionsBySession.has(
+          sessionId,
+        )
+      ) {
+        connectionsBySession.set(
+          sessionId,
+          new Set(),
+        );
+      }
 
-    connectionsBySession.get(sessionId).add(ws);
+      connectionsBySession
+        .get(sessionId)
+        .add(ws);
 
-    ws.send(JSON.stringify(createPlaybackStateMessage(state)));
+      // Send the current playback state
+      // immediately when the socket connects.
+      ws.send(
+        JSON.stringify(
+          createPlaybackStateMessage(
+            state,
+          ),
+        ),
+      );
 
-    ws.on("message", async (data) => {
-      try {
-        const message = JSON.parse(data.toString());
+      ws.on(
+        "message",
+        async (data) => {
+          try {
+            const message = JSON.parse(
+              data.toString(),
+            );
 
-        if (
-          message === null ||
-          typeof message !== "object" ||
-          Array.isArray(message)
-        ) {
-          sendError(ws, "error", "INVALID_MESSAGE");
+            if (
+              message === null ||
+              typeof message !== "object" ||
+              Array.isArray(message)
+            ) {
+              sendError(
+                ws,
+                "error",
+                "INVALID_MESSAGE",
+              );
 
-          return;
-        }
+              return;
+            }
 
-        // Instructor authentication
-        if (message.type === "auth") {
-          const authorization = await verifyInstructorToken(
-            {
-              sessionId,
-              instructorToken: message.token,
-            },
-            db,
-          );
+            // Instructor authentication.
+            if (message.type === "auth") {
+              const authorization =
+                await verifyInstructorToken(
+                  {
+                    sessionId,
+                    instructorToken:
+                      message.token,
+                  },
+                  db,
+                );
 
-          if (authorization.type !== "AUTHORIZED") {
-            sendError(ws, "auth:error", "INVALID_TOKEN");
+              if (
+                authorization.type !==
+                "AUTHORIZED"
+              ) {
+                sendError(
+                  ws,
+                  "auth:error",
+                  "INVALID_TOKEN",
+                );
 
-            return;
-          }
+                return;
+              }
 
-          ws.isInstructor = true;
+              ws.isInstructor = true;
 
-          ws.send(
-            JSON.stringify({
-              type: "auth:success",
-            }),
-          );
+              ws.send(
+                JSON.stringify({
+                  type: "auth:success",
+                }),
+              );
 
-          return;
-        }
+              return;
+            }
 
-        const isPlaybackCommand =
-          message.type === "playback:play" ||
-          message.type === "playback:pause" ||
-          message.type === "playback:seek";
+            /*
+             * Read-only playback state request.
+             *
+             * Available to instructors and
+             * participants.
+             *
+             * Does not mutate the database.
+             * Does not increment the version.
+             * Does not broadcast to other sockets.
+             */
+            if (
+              message.type ===
+              "playback:request-state"
+            ) {
+              const currentState =
+                await getSessionPlaybackState(
+                  sessionId,
+                );
 
-        // Only authenticated instructors
-        // can control playback.
-        if (isPlaybackCommand) {
-          if (!ws.isInstructor) {
-            sendError(ws, "playback:error", "UNAUTHORIZED");
+              if (!currentState) {
+                sendError(
+                  ws,
+                  "playback:error",
+                  "SESSION_NOT_FOUND",
+                );
 
-            return;
-          }
+                return;
+              }
 
-          // The session lifecycle is also
-          // a playback-control boundary.
-          const currentState = await getSessionPlaybackState(sessionId);
+              if (
+                currentState.status ===
+                "ENDED"
+              ) {
+                sendError(
+                  ws,
+                  "session:error",
+                  "SESSION_ENDED",
+                );
 
-          if (!currentState) {
-            sendError(ws, "playback:error", "SESSION_NOT_FOUND");
+                ws.close(
+                  1000,
+                  "SESSION_ENDED",
+                );
 
-            return;
-          }
+                return;
+              }
 
-          if (currentState.status !== "LIVE") {
-            sendError(ws, "playback:error", "SESSION_NOT_LIVE");
+              ws.send(
+                JSON.stringify(
+                  createPlaybackStateMessage(
+                    currentState,
+                  ),
+                ),
+              );
 
-            return;
-          }
+              return;
+            }
 
-          // Play
-          if (message.type === "playback:play") {
-            const updateResult = await db.query(
-              `
+            /*
+             * Session lifecycle.
+             *
+             * The REST /end endpoint is the
+             * authoritative operation that changes
+             * the database status to ENDED.
+             *
+             * The WebSocket message tells connected
+             * clients about that completed change.
+             */
+            if (
+              message.type === "session:end"
+            ) {
+              if (!ws.isInstructor) {
+                sendError(
+                  ws,
+                  "session:error",
+                  "UNAUTHORIZED",
+                );
+
+                return;
+              }
+
+              const currentState =
+                await getSessionPlaybackState(
+                  sessionId,
+                );
+
+              if (!currentState) {
+                sendError(
+                  ws,
+                  "session:error",
+                  "SESSION_NOT_FOUND",
+                );
+
+                return;
+              }
+
+              if (
+                currentState.status !==
+                "ENDED"
+              ) {
+                sendError(
+                  ws,
+                  "session:error",
+                  "SESSION_NOT_ENDED",
+                );
+
+                return;
+              }
+
+              broadcastSessionEnded(
+                sessionId,
+              );
+
+              return;
+            }
+
+            const isPlaybackCommand =
+              message.type ===
+                "playback:play" ||
+              message.type ===
+                "playback:pause" ||
+              message.type ===
+                "playback:seek";
+
+            // Only authenticated instructors
+            // can control playback.
+            if (isPlaybackCommand) {
+              if (!ws.isInstructor) {
+                sendError(
+                  ws,
+                  "playback:error",
+                  "UNAUTHORIZED",
+                );
+
+                return;
+              }
+
+              // The session lifecycle is also
+              // a playback-control boundary.
+              const currentState =
+                await getSessionPlaybackState(
+                  sessionId,
+                );
+
+              if (!currentState) {
+                sendError(
+                  ws,
+                  "playback:error",
+                  "SESSION_NOT_FOUND",
+                );
+
+                return;
+              }
+
+              if (
+                currentState.status !==
+                "LIVE"
+              ) {
+                sendError(
+                  ws,
+                  "playback:error",
+                  "SESSION_NOT_LIVE",
+                );
+
+                return;
+              }
+
+              // Play
+              if (
+                message.type ===
+                "playback:play"
+              ) {
+                const updateResult =
+                  await db.query(
+                    `
                       UPDATE session_playback_state
                       SET
                         is_playing = true,
@@ -193,31 +430,52 @@ function attachWebSocketServer(server, db) {
                         version,
                         updated_at
                     `,
-              [sessionId],
-            );
+                    [sessionId],
+                  );
 
-            if (updateResult.rows.length === 0) {
-              return;
-            }
+                if (
+                  updateResult.rows
+                    .length === 0
+                ) {
+                  return;
+                }
 
-            broadcastPlaybackState(sessionId, updateResult.rows[0]);
+                broadcastPlaybackState(
+                  sessionId,
+                  updateResult.rows[0],
+                );
 
-            return;
-          }
+                return;
+              }
 
-          // Pause
-          if (message.type === "playback:pause") {
-            const pauseServerTime = new Date().toISOString();
+              // Pause
+              if (
+                message.type ===
+                "playback:pause"
+              ) {
+                const pauseServerTime =
+                  new Date().toISOString();
 
-            const effectivePosition = calculateEffectivePosition({
-              position: Number(currentState.position),
-              isPlaying: currentState.is_playing,
-              updatedAt: new Date(currentState.updated_at).toISOString(),
-              serverTime: pauseServerTime,
-            });
+                const effectivePosition =
+                  calculateEffectivePosition(
+                    {
+                      position: Number(
+                        currentState.position,
+                      ),
+                      isPlaying:
+                        currentState.is_playing,
+                      updatedAt:
+                        new Date(
+                          currentState.updated_at,
+                        ).toISOString(),
+                      serverTime:
+                        pauseServerTime,
+                    },
+                  );
 
-            const updateResult = await db.query(
-              `
+                const updateResult =
+                  await db.query(
+                    `
                       UPDATE session_playback_state
                       SET
                         position = $1,
@@ -231,32 +489,52 @@ function attachWebSocketServer(server, db) {
                         version,
                         updated_at
                     `,
-              [effectivePosition, sessionId],
-            );
+                    [
+                      effectivePosition,
+                      sessionId,
+                    ],
+                  );
 
-            if (updateResult.rows.length === 0) {
-              return;
-            }
+                if (
+                  updateResult.rows
+                    .length === 0
+                ) {
+                  return;
+                }
 
-            broadcastPlaybackState(sessionId, updateResult.rows[0]);
+                broadcastPlaybackState(
+                  sessionId,
+                  updateResult.rows[0],
+                );
 
-            return;
-          }
+                return;
+              }
 
-          // Seek
-          if (message.type === "playback:seek") {
-            if (
-              typeof message.position !== "number" ||
-              !Number.isFinite(message.position) ||
-              message.position < 0
-            ) {
-              sendError(ws, "playback:error", "INVALID_POSITION");
+              // Seek
+              if (
+                message.type ===
+                "playback:seek"
+              ) {
+                if (
+                  typeof message.position !==
+                    "number" ||
+                  !Number.isFinite(
+                    message.position,
+                  ) ||
+                  message.position < 0
+                ) {
+                  sendError(
+                    ws,
+                    "playback:error",
+                    "INVALID_POSITION",
+                  );
 
-              return;
-            }
+                  return;
+                }
 
-            const updateResult = await db.query(
-              `
+                const updateResult =
+                  await db.query(
+                    `
                       UPDATE session_playback_state
                       SET
                         position = $1,
@@ -269,43 +547,72 @@ function attachWebSocketServer(server, db) {
                         version,
                         updated_at
                     `,
-              [message.position, sessionId],
+                    [
+                      message.position,
+                      sessionId,
+                    ],
+                  );
+
+                if (
+                  updateResult.rows
+                    .length === 0
+                ) {
+                  return;
+                }
+
+                broadcastPlaybackState(
+                  sessionId,
+                  updateResult.rows[0],
+                );
+
+                return;
+              }
+            }
+          } catch (error) {
+            console.error(
+              "WebSocket message handling error:",
+              error,
             );
 
-            if (updateResult.rows.length === 0) {
-              return;
-            }
-
-            broadcastPlaybackState(sessionId, updateResult.rows[0]);
-
-            return;
+            sendError(
+              ws,
+              "error",
+              "INVALID_MESSAGE",
+            );
           }
+        },
+      );
+
+      function removeConnection() {
+        const connections =
+          connectionsBySession.get(
+            sessionId,
+          );
+
+        if (!connections) {
+          return;
         }
-      } catch (error) {
-        console.error("WebSocket message handling error:", error);
 
-        sendError(ws, "error", "INVALID_MESSAGE");
-      }
-    });
+        connections.delete(ws);
 
-    function removeConnection() {
-      const connections = connectionsBySession.get(sessionId);
-
-      if (!connections) {
-        return;
+        if (connections.size === 0) {
+          connectionsBySession.delete(
+            sessionId,
+          );
+        }
       }
 
-      connections.delete(ws);
+      ws.on(
+        "close",
+        removeConnection,
+      );
 
-      if (connections.size === 0) {
-        connectionsBySession.delete(sessionId);
-      }
-    }
-
-    ws.on("close", removeConnection);
-
-    ws.on("error", removeConnection);
-  });
+      ws.on(
+        "error",
+        removeConnection,
+      );
+    },
+  );
 
   return wss;
 }
