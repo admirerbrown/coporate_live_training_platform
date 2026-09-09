@@ -469,4 +469,46 @@ describe("InstructorSessionPage", () => {
       }),
     ).not.toBeDisabled();
   });
+
+  it("shows the participant join link", () => {
+    render(<InstructorSessionPage session={baseSession} />);
+
+    const joinLink = screen.getByRole("textbox", {
+      name: "Participant join link",
+    });
+
+    expect(joinLink).toHaveValue(
+      `${window.location.origin}/sessions/session-123/join`,
+    );
+  });
+
+  it("copies the participant join link", async () => {
+    const writeText = vi.fn().mockResolvedValue();
+
+    Object.assign(navigator, {
+      clipboard: {
+        writeText,
+      },
+    });
+
+    render(<InstructorSessionPage session={baseSession} />);
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Copy join link",
+      }),
+    );
+
+    await waitFor(() => {
+      expect(writeText).toHaveBeenCalledWith(
+        `${window.location.origin}/sessions/session-123/join`,
+      );
+    });
+
+    expect(
+      screen.getByRole("button", {
+        name: "Copied!",
+      }),
+    ).toBeInTheDocument();
+  });
 });

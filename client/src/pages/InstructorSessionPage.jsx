@@ -39,6 +39,9 @@ export default function InstructorSessionPage({
   const [isEnding, setIsEnding] =
     useState(false);
 
+  const [copyStatus, setCopyStatus] =
+    useState("Copy join link");
+
   const statusLabel =
     {
       CREATED: "Ready to start",
@@ -57,6 +60,9 @@ export default function InstructorSessionPage({
   const canControlPlayback =
     role === "instructor" &&
     sessionStatus === "LIVE";
+
+  const joinLink =
+    `${window.location.origin}/sessions/${session.id}/join`;
 
   async function handleStart() {
     if (!canStart || isStarting) {
@@ -113,6 +119,26 @@ export default function InstructorSessionPage({
       );
     } finally {
       setIsEnding(false);
+    }
+  }
+
+  async function handleCopyJoinLink() {
+    try {
+      await navigator.clipboard.writeText(
+        joinLink,
+      );
+
+      setCopyStatus("Copied!");
+
+      window.setTimeout(() => {
+        setCopyStatus("Copy join link");
+      }, 2000);
+    } catch {
+      setCopyStatus("Copy failed");
+
+      window.setTimeout(() => {
+        setCopyStatus("Copy join link");
+      }, 2000);
     }
   }
 
@@ -213,6 +239,31 @@ export default function InstructorSessionPage({
               : "End Session"}
           </button>
         )}
+      </section>
+
+      <section aria-label="Participant join link">
+        <h2>Participant Join Link</h2>
+
+        <div>
+          <input
+            type="text"
+            value={joinLink}
+            readOnly
+            aria-label="Participant join link"
+          />
+
+          <button
+            type="button"
+            onClick={handleCopyJoinLink}
+          >
+            {copyStatus}
+          </button>
+        </div>
+
+        <p>
+          Share this link with participants so
+          they can join the training session.
+        </p>
       </section>
 
       <section aria-label="Training video">

@@ -23,7 +23,8 @@ export function createWebSocketClient({
   }
 
   function buildUrl() {
-    const normalizedBaseUrl = baseUrl.replace(/\/+$/, "");
+    const normalizedBaseUrl =
+      baseUrl.replace(/\/+$/, "");
 
     return `${normalizedBaseUrl}/ws?sessionId=${encodeURIComponent(
       sessionId,
@@ -33,15 +34,21 @@ export function createWebSocketClient({
   function connect() {
     if (
       socket &&
-      (socket.readyState === WebSocketImpl.CONNECTING ||
-        socket.readyState === WebSocketImpl.OPEN)
+      (
+        socket.readyState ===
+          WebSocketImpl.CONNECTING ||
+        socket.readyState ===
+          WebSocketImpl.OPEN
+      )
     ) {
       return;
     }
 
     setStatus("connecting");
 
-    socket = new WebSocketImpl(buildUrl());
+    const url = buildUrl();
+
+    socket = new WebSocketImpl(url);
 
     socket.onopen = () => {
       setStatus("connected");
@@ -52,7 +59,9 @@ export function createWebSocketClient({
         const message =
           typeof event.data === "string"
             ? JSON.parse(event.data)
-            : JSON.parse(String(event.data));
+            : JSON.parse(
+                String(event.data),
+              );
 
         for (const listener of messageListeners) {
           listener(message);
@@ -81,15 +90,24 @@ export function createWebSocketClient({
   function send(message) {
     if (
       !socket ||
-      socket.readyState !== WebSocketImpl.OPEN
+      socket.readyState !==
+        WebSocketImpl.OPEN
     ) {
       return false;
     }
 
     try {
-      socket.send(JSON.stringify(message));
+      socket.send(
+        JSON.stringify(message),
+      );
+
       return true;
     } catch (error) {
+      console.error(
+        "[WebSocket] send error:",
+        error,
+      );
+
       for (const listener of errorListeners) {
         listener(error);
       }
@@ -109,8 +127,10 @@ export function createWebSocketClient({
     socket = null;
 
     if (
-      currentSocket.readyState === WebSocketImpl.OPEN ||
-      currentSocket.readyState === WebSocketImpl.CONNECTING
+      currentSocket.readyState ===
+        WebSocketImpl.OPEN ||
+      currentSocket.readyState ===
+        WebSocketImpl.CONNECTING
     ) {
       currentSocket.close();
     }

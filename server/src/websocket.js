@@ -181,18 +181,18 @@ function attachWebSocketServer(server, db) {
           if (message.type === "playback:play") {
             const updateResult = await db.query(
               `
-                    UPDATE session_playback_state
-                    SET
-                      is_playing = true,
-                      version = version + 1,
-                      updated_at = now()
-                    WHERE session_id = $1
-                    RETURNING
-                      position,
-                      is_playing,
-                      version,
-                      updated_at
-                  `,
+                      UPDATE session_playback_state
+                      SET
+                        is_playing = true,
+                        version = version + 1,
+                        updated_at = now()
+                      WHERE session_id = $1
+                      RETURNING
+                        position,
+                        is_playing,
+                        version,
+                        updated_at
+                    `,
               [sessionId],
             );
 
@@ -218,19 +218,19 @@ function attachWebSocketServer(server, db) {
 
             const updateResult = await db.query(
               `
-                    UPDATE session_playback_state
-                    SET
-                      position = $1,
-                      is_playing = false,
-                      version = version + 1,
-                      updated_at = now()
-                    WHERE session_id = $2
-                    RETURNING
-                      position,
-                      is_playing,
-                      version,
-                      updated_at
-                  `,
+                      UPDATE session_playback_state
+                      SET
+                        position = $1,
+                        is_playing = false,
+                        version = version + 1,
+                        updated_at = now()
+                      WHERE session_id = $2
+                      RETURNING
+                        position,
+                        is_playing,
+                        version,
+                        updated_at
+                    `,
               [effectivePosition, sessionId],
             );
 
@@ -257,18 +257,18 @@ function attachWebSocketServer(server, db) {
 
             const updateResult = await db.query(
               `
-                    UPDATE session_playback_state
-                    SET
-                      position = $1,
-                      version = version + 1,
-                      updated_at = now()
-                    WHERE session_id = $2
-                    RETURNING
-                      position,
-                      is_playing,
-                      version,
-                      updated_at
-                  `,
+                      UPDATE session_playback_state
+                      SET
+                        position = $1,
+                        version = version + 1,
+                        updated_at = now()
+                      WHERE session_id = $2
+                      RETURNING
+                        position,
+                        is_playing,
+                        version,
+                        updated_at
+                    `,
               [message.position, sessionId],
             );
 
@@ -303,6 +303,7 @@ function attachWebSocketServer(server, db) {
     }
 
     ws.on("close", removeConnection);
+
     ws.on("error", removeConnection);
   });
 
