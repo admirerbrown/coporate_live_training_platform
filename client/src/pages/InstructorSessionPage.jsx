@@ -151,62 +151,37 @@ export default function InstructorSessionPage({ session }) {
   }
 
   return (
-    <main className="h-screen overflow-hidden bg-[#071f24] px-4 py-5 text-white sm:px-6 sm:py-8">
-      <div className="mx-auto flex h-full max-w-300 flex-col">
-        <header className="mb-6 flex flex-col gap-5 border-b border-white/10 pb-6 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <div className="mb-4 flex items-center gap-3"><span className="grid size-9 place-items-center rounded-lg bg-teal text-xs font-bold">CT</span><span className="font-mono text-[10px] tracking-[0.2em] text-teal-soft uppercase">Instructor control room</span></div>
-            <div className="flex flex-wrap items-center gap-2"><span className="rounded-full bg-teal px-3 py-1 text-xs font-bold text-white">{statusLabel}</span><span className="font-mono text-xs text-white/45">Session / <strong>{session.id}</strong></span></div>
-            <h1 className="mt-3 max-w-3xl text-3xl font-bold leading-tight sm:text-5xl">{session.name}</h1>
+    <main className="relative h-dvh overflow-hidden bg-[#f2eee7] px-4 py-5 text-[#171525] sm:px-6 sm:py-7">
+      <div className="relative mx-auto flex h-full min-h-0 max-w-300 flex-col">
+        <header className="relative mb-4 grid shrink-0 gap-4 border-b border-[#171525]/12 pb-4 sm:mb-6 sm:grid-cols-[minmax(170px,0.3fr)_minmax(0,1fr)] sm:gap-6 sm:pb-5">
+          <div className="flex min-w-0 flex-col justify-between gap-2 border-b border-[#171525]/10 pb-3 sm:border-b-0 sm:border-r sm:pb-0 sm:pr-6">
+            <div className="flex items-center gap-3"><span className="grid size-10 shrink-0 place-items-center rounded-xl bg-[#c97967] font-display text-sm font-bold text-[#171525]">CT</span><span className="whitespace-nowrap font-mono text-[10px] tracking-[0.22em] text-[#9f5d50] uppercase">Instructor room</span></div>
+            <div className="flex flex-wrap items-center gap-4"><span className="inline-flex shrink-0 items-center gap-2 rounded-full border border-[#9f5d50]/40 bg-[#c97967]/12 px-3 py-1 font-mono text-[10px] font-bold tracking-[0.12em] text-[#9f5d50] uppercase"><span className="size-1.5 rounded-full bg-[#87945a]" />{statusLabel}</span><p className="hidden items-center gap-2 font-mono text-xs text-[#171525]/60 sm:flex"><span className="size-2 rounded-full bg-[#87945a]" /><strong className="text-[#687443]">{connectionStatus}</strong></p></div>
           </div>
-          <p className="flex items-center gap-2 pb-1 font-mono text-xs text-white/60"><span className="size-2 rounded-full bg-teal shadow-[0_0_0_4px_rgba(8,127,120,0.2)]" /><strong className="text-teal-soft">{connectionStatus}</strong><span>room link active</span></p>
+          <div className="min-w-0 text-center sm:absolute sm:left-1/2 sm:top-1/2 sm:w-[min(52%,30rem)] sm:-translate-x-1/2 sm:-translate-y-1/2">
+            <h1 aria-label={session.name} className="truncate font-display text-xl font-bold leading-tight tracking-tight text-[#171525] sm:text-2xl"><span className="mr-2 text-[#171525]/40">Session:</span>{session.name}</h1>
+            <p className="mt-2 truncate font-mono text-[10px] tracking-[0.14em] text-[#171525]/45 uppercase">ROOM / <strong className="text-[#171525]/70">{session.id}</strong></p>
+          </div>
+          <p className="flex items-center justify-end font-mono text-[10px] text-[#9f5d50] sm:text-xs"><span className="mr-2 text-[#171525]/40">Host controls</span>Active</p>
         </header>
 
-        <div className="grid min-h-0 flex-1 items-start gap-5 overflow-hidden lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.34fr)]">
-          <section className="aspect-video overflow-hidden rounded-xl border border-white/10 bg-[#102d32] p-2 shadow-[0_25px_80px_rgba(0,0,0,0.24)]" aria-label="Training video">
-            <YouTubePlayer className="aspect-video" videoUrl={session.youtubeUrl} playback={playback} />
+        <div className="grid min-h-0 flex-1 gap-4 overflow-hidden lg:h-full lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.34fr)] lg:gap-5">
+          <section className="flex min-h-32 min-w-0 flex-col overflow-hidden rounded-2xl border border-[#171525]/15 bg-[#e6e0d6] p-2 shadow-[0_30px_90px_rgba(43,34,27,0.14)] lg:h-full lg:min-h-0" aria-label="Training video">
+            <div className="mb-2 flex items-center justify-between px-2 pt-1 font-mono text-[10px] tracking-[0.14em] uppercase"><span className="text-[#171525]/45">Broadcast / Room feed</span><span className={sessionStatus === "LIVE" ? "text-[#687443]" : "font-bold text-[#9f5d50]"}>{sessionStatus === "LIVE" ? "Live to room" : sessionStatus === "CREATED" ? "Ready to start" : "Room closed"}</span></div>
+            <YouTubePlayer className="min-h-0 h-full w-full flex-1 aspect-auto overflow-hidden rounded-lg" videoUrl={session.youtubeUrl} playback={playback} />
           </section>
-          <aside className="grid max-h-full gap-4 overflow-y-auto pr-1">
-          <section className="overflow-hidden rounded-xl border border-white/10 bg-[#f5fbf8] text-ink shadow-[0_20px_50px_rgba(0,0,0,0.14)]" aria-label="Session controls">
-            <div className="flex items-start justify-between border-b border-forest/10 px-5 pb-4 pt-5">
-              <div><p className="mb-2 font-mono text-[10px] tracking-[0.16em] text-teal uppercase">Room index</p><h2 className="text-xl font-bold">Session Controls</h2></div>
-              <span className="font-mono text-xs text-muted">{sessionStatus === "LIVE" ? "03 / 03" : "01 / 03"}</span>
-            </div>
-            {lifecycleError && <div className="mx-5 mt-4 rounded-md border border-red-200 bg-red-50 p-3 text-red-700" role="alert">{lifecycleError}</div>}
-            <nav className="grid gap-px bg-forest/10" aria-label="Session actions">
-              {sessionStatus === "CREATED" && <div className="bg-[#f5fbf8] p-2">
-                <button className="group flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left transition hover:bg-teal hover:text-white disabled:cursor-not-allowed disabled:opacity-50" type="button" onClick={handleStart} disabled={!canStart || isStarting} aria-label={isStarting ? "Starting Session..." : "Start Session"}>
-                  <span className="font-mono text-xs text-teal group-hover:text-white/70">01</span><span className="flex-1 font-bold">{isStarting ? "Starting Session..." : "Start Session"}</span><span className="text-lg leading-none text-teal group-hover:text-white">-&gt;</span>
-                </button>
-              </div>}
-              <div className="bg-[#f5fbf8] p-2">
-                <button className="group flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left transition hover:bg-forest hover:text-white disabled:cursor-not-allowed disabled:opacity-50" type="button" onClick={handleCopyJoinLink} aria-label={copyStatus}>
-                  <span className="font-mono text-xs text-teal group-hover:text-teal-soft">02</span><span className="flex-1 font-bold">{copyStatus}</span><span className="text-lg leading-none text-teal group-hover:text-white" aria-hidden="true">-&gt;</span>
-                </button>
-              </div>
-              {sessionStatus === "LIVE" && <div className="bg-[#f5fbf8] p-2">
-                <button className="group flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left transition hover:bg-red-700 hover:text-white disabled:cursor-not-allowed disabled:opacity-50" type="button" onClick={handleEnd} disabled={!canEnd || isEnding} aria-label={isEnding ? "Ending Session..." : "End Session"}>
-                  <span className="font-mono text-xs text-red-700 group-hover:text-white/70">03</span><span className="flex-1 font-bold">{isEnding ? "Ending Session..." : "End Session"}</span><span className="text-lg leading-none text-red-700 group-hover:text-white">-&gt;</span>
-                </button>
-              </div>}
-            </nav>
-          </section>
-          <section className="rounded-xl border border-white/10 bg-[#d9efeb] p-5 text-ink" aria-label="Participant join link">
-            <p className="mb-2 font-mono text-[10px] tracking-[0.16em] text-teal uppercase">Share / Room entry</p><h2 className="mb-4 text-xl font-bold">Participant Join Link</h2>
-            <input className="mb-2 min-h-11 w-full rounded-md border border-teal/20 bg-white/70 px-3 font-mono text-xs" type="text" value={joinLink} readOnly aria-label="Participant join link" />
-            <p className="mt-3 text-sm text-muted">Invite your room with one link. Everyone stays in sync.</p>
-          </section>
-          <section className="rounded-xl border border-white/10 bg-white p-5 text-ink" aria-label="Playback controls">
-            <div className="mb-4 flex items-start justify-between"><div><p className="mb-2 font-mono text-[10px] tracking-[0.16em] text-teal uppercase">Navigate / Timeline</p><h2 className="text-xl font-bold">Playback Controls</h2></div><span className="font-mono text-xs text-muted">{Math.floor(playback.position)}s</span></div>
-            <div className="grid grid-cols-2 gap-2">
-              <button className="rounded-lg bg-teal px-4 py-2 text-left font-bold text-white transition hover:bg-forest disabled:opacity-50" type="button" onClick={handlePlay} disabled={!canControlPlayback} aria-label="Play"><span className="mr-2" aria-hidden="true">&gt;</span>Play</button>
-              <button className="rounded-lg border border-line bg-white px-4 py-2 text-left font-bold text-navy transition hover:border-teal disabled:opacity-50" type="button" onClick={handlePause} disabled={!canControlPlayback} aria-label="Pause"><span className="mr-2" aria-hidden="true">||</span>Pause</button>
-            </div>
-            <div>
-              <label className="mt-4 block text-sm font-bold text-muted" htmlFor="seek-position">Seek position</label>
-              <div className="mt-2 flex gap-2"><input id="seek-position" type="number" min="0" step="1" className="min-h-11 w-full rounded-md border border-line px-3" value={seekPosition} onChange={(event) => setSeekPosition(event.target.value)} disabled={!canControlPlayback} /><button className="rounded-md border border-line bg-white px-4 py-2 font-bold text-navy disabled:opacity-50" type="button" onClick={handleSeek} disabled={!canControlPlayback}>Seek</button></div>
-            </div>
-          </section>
+
+          <aside className="grid min-h-0 content-start gap-3 overflow-hidden pr-1">
+            <section className="h-fit self-start overflow-visible rounded-2xl border border-[#9f5d50]/30 bg-white text-[#171525] shadow-[0_20px_50px_rgba(43,34,27,0.12)]" aria-label="Session controls">
+              <div className="border-b border-[#171525]/10 px-4 py-2"><p className="mb-1 font-mono text-[10px] tracking-[0.16em] text-[#9f5d50] uppercase">Host / Room index</p><h2 className="text-base font-bold">Session Controls</h2></div>
+              {lifecycleError && <div className="mx-5 mt-4 rounded-md bg-[#c97967]/12 p-3 text-[#9f5d50]" role="alert">{lifecycleError}</div>}
+              <nav className="flex flex-wrap gap-2 p-2" aria-label="Session actions">
+                {sessionStatus === "CREATED" && <button className="group inline-flex items-center gap-2 rounded-lg bg-[#c97967] px-3 py-1.5 text-xs font-bold text-[#171525] transition hover:bg-[#aeb98a] disabled:cursor-not-allowed disabled:opacity-50" type="button" onClick={handleStart} disabled={!canStart || isStarting} aria-label={isStarting ? "Starting Session..." : "Start Session"}>{isStarting ? "Starting Session..." : "Start Session"}<span aria-hidden="true">-&gt;</span></button>}
+                {sessionStatus === "LIVE" && <button className="group inline-flex items-center gap-2 rounded-lg bg-[#c97967] px-3 py-2 text-sm font-bold text-[#171525] transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-50" type="button" onClick={handleEnd} disabled={!canEnd || isEnding} aria-label={isEnding ? "Ending Session..." : "End Session"}>{isEnding ? "Ending Session..." : "End Session"}<span aria-hidden="true">-&gt;</span></button>}
+              </nav>
+            </section>
+            <section className="rounded-2xl border border-[#87945a]/30 bg-[#e7eadb] p-3 text-[#171525]" aria-label="Participant join link"><div className="flex items-center justify-between gap-3"><div><p className="mb-1 font-mono text-[10px] tracking-[0.16em] text-[#687443] uppercase">Share / Room entry</p><h2 className="text-base font-bold">Participant Join Link</h2></div><button className="shrink-0 rounded-lg bg-[#aeb98a] px-3 py-2 text-xs font-bold text-[#171525]" type="button" onClick={handleCopyJoinLink} aria-label={copyStatus}>{copyStatus === "Copy join link" ? "Copy" : copyStatus}</button></div><input className="mt-3 min-h-9 w-full rounded-md border border-[#171525]/15 bg-white/70 px-3 font-mono text-[10px] text-[#171525]" type="text" value={joinLink} readOnly aria-label="Participant join link" /></section>
+            <section className="rounded-2xl border border-[#171525]/12 bg-white p-3 text-[#171525]" aria-label="Playback controls"><div className="mb-2 flex items-start justify-between"><div><p className="mb-1 font-mono text-[10px] tracking-[0.16em] text-[#9f5d50] uppercase">Navigate / Timeline</p><h2 className="text-base font-bold">Playback Controls</h2></div><span className="font-mono text-xs text-[#9f5d50]">{Math.floor(playback.position)}s</span></div><div className="grid grid-cols-2 gap-2"><button className="rounded-lg bg-[#c97967] px-2.5 py-1.5 text-sm font-bold text-[#171525] transition hover:bg-[#aeb98a] disabled:opacity-50" type="button" onClick={handlePlay} disabled={!canControlPlayback} aria-label="Play"><span className="mr-2" aria-hidden="true">&gt;</span>Play</button><button className="rounded-lg border border-[#171525]/15 bg-transparent px-2.5 py-1.5 text-sm font-bold text-[#171525] transition hover:border-[#9f5d50] disabled:opacity-50" type="button" onClick={handlePause} disabled={!canControlPlayback} aria-label="Pause"><span className="mr-2" aria-hidden="true">||</span>Pause</button></div><div><label className="mt-2 block text-xs font-bold text-[#171525]/60" htmlFor="seek-position">Seek position</label><div className="mt-1 flex gap-2"><input id="seek-position" type="number" min="0" step="1" className="min-h-8 w-full rounded-md border border-[#171525]/15 bg-white/60 px-2" value={seekPosition} onChange={(event) => setSeekPosition(event.target.value)} disabled={!canControlPlayback} /><button className="rounded-md border border-[#171525]/15 bg-transparent px-2.5 py-1.5 text-sm font-bold text-[#171525] disabled:opacity-50" type="button" onClick={handleSeek} disabled={!canControlPlayback}>Seek</button></div></div></section>
           </aside>
         </div>
         {role !== "instructor" && <p className="mt-5 rounded-md bg-amber-50 p-3 text-amber-800" role="status">Instructor controls are unavailable.</p>}
