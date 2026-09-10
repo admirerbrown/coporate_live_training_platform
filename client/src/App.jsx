@@ -18,6 +18,9 @@ import { getSession } from "./api/sessions";
 const instructorTokenKey = (sessionId) =>
   `training:instructor-token:${sessionId}`;
 
+const participantNameKey = (sessionId) =>
+  `training:participant-name:${sessionId}`;
+
 function CreateSessionRoute() {
   const navigate = useNavigate();
 
@@ -133,9 +136,16 @@ function InstructorSessionRoute() {
 }
 
 function ParticipantSessionRoute() {
+  const { sessionId } = useParams();
+
   return (
     <SessionRouteLoader>
-      {(session) => <ParticipantSessionPage session={session} />}
+      {(session) => (
+        <ParticipantSessionPage
+          session={session}
+          participantName={sessionStorage.getItem(participantNameKey(sessionId))}
+        />
+      )}
     </SessionRouteLoader>
   );
 }

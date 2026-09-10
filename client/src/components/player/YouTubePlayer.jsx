@@ -27,6 +27,8 @@ const RECONCILIATION_INTERVAL_MS = 1000;
 export default function YouTubePlayer({
   videoUrl,
   playback,
+  className = "",
+  onDurationChange,
 }) {
   const containerRef = useRef(null);
 
@@ -322,6 +324,10 @@ export default function YouTubePlayer({
 
                   setLoadError(null);
 
+                  if (typeof onDurationChange === "function") {
+                    onDurationChange(event.target.getDuration());
+                  }
+
                   applyInitialPlayback(
                     event.target,
                     playbackRef.current,
@@ -504,7 +510,7 @@ export default function YouTubePlayer({
   }, [playback]);
 
   return (
-    <section aria-label="YouTube player">
+    <section className={`h-full ${className}`} aria-label="YouTube player">
       {error ? (
         <div role="alert">
           {error}
@@ -513,6 +519,7 @@ export default function YouTubePlayer({
         <div
           ref={containerRef}
           aria-label="Training video"
+          className="size-full"
           style={{
             pointerEvents: "none",
           }}

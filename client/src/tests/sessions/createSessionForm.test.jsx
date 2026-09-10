@@ -50,7 +50,7 @@ describe("CreateSessionForm", () => {
     );
 
     fireEvent.change(
-      screen.getByLabelText(/youtube url/i),
+      screen.getByLabelText(/video url/i),
       {
         target: {
           value:
@@ -74,7 +74,7 @@ describe("CreateSessionForm", () => {
     ).toBeRequired();
 
     expect(
-      screen.getByLabelText(/youtube url/i),
+      screen.getByLabelText(/video url/i),
     ).toBeRequired();
 
     expect(
@@ -85,7 +85,7 @@ describe("CreateSessionForm", () => {
     ).toBeInTheDocument();
   });
 
-  it("sends the entered name and YouTube URL", () => {
+  it("sends the entered name and video URL", () => {
     createSession.mockResolvedValue({
       id: "session-123",
     });
@@ -121,7 +121,7 @@ describe("CreateSessionForm", () => {
     ).toBeDisabled();
 
     expect(
-      screen.getByLabelText(/youtube url/i),
+      screen.getByLabelText(/video url/i),
     ).toBeDisabled();
 
     expect(
@@ -223,7 +223,7 @@ describe("CreateSessionForm", () => {
     ).toHaveValue("JavaScript Training");
 
     expect(
-      screen.getByLabelText(/youtube url/i),
+      screen.getByLabelText(/video url/i),
     ).toHaveValue(
       "https://www.youtube.com/watch?v=test123",
     );
