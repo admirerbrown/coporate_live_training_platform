@@ -37,6 +37,9 @@ export default function YouTubePlayer({
   const previousAppliedPlaybackRef =
     useRef(null);
 
+  const playingAlignmentVersionRef =
+    useRef(null);
+
   const playbackRef = useRef(playback);
 
   const playbackRateRef = useRef(
@@ -232,6 +235,38 @@ export default function YouTubePlayer({
       };
   }
 
+  function alignPlayingPlayer(
+    player,
+    currentPlayback,
+  ) {
+    if (
+      !currentPlayback.isPlaying ||
+      playingAlignmentVersionRef.current ===
+        currentPlayback.version
+    ) {
+      return;
+    }
+
+    playingAlignmentVersionRef.current =
+      currentPlayback.version;
+
+    resetPlaybackRate(player);
+
+    const effectivePosition =
+      getEffectivePosition(currentPlayback);
+
+    player.seekTo(
+      effectivePosition,
+      true,
+    );
+
+    previousAppliedPlaybackRef.current =
+      {
+        effectivePosition,
+        isPlaying: true,
+      };
+  }
+
   useEffect(() => {
     if (!videoId) {
       return undefined;
@@ -288,6 +323,22 @@ export default function YouTubePlayer({
                   setLoadError(null);
 
                   applyInitialPlayback(
+                    event.target,
+                    playbackRef.current,
+                  );
+                },
+
+                onStateChange(event) {
+                  if (
+                    cancelled ||
+                    event.target !== player ||
+                    event.data !== 1 ||
+                    !playerReadyRef.current
+                  ) {
+                    return;
+                  }
+
+                  alignPlayingPlayer(
                     event.target,
                     playbackRef.current,
                   );
@@ -359,6 +410,9 @@ export default function YouTubePlayer({
       previousAppliedPlaybackRef.current =
         null;
 
+      playingAlignmentVersionRef.current =
+        null;
+
       playbackRateRef.current =
         NORMAL_PLAYBACK_RATE;
 
@@ -366,6 +420,8 @@ export default function YouTubePlayer({
         player.destroy();
       }
     };
+    // The player lifecycle must remain tied to the video identity only.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [videoId, videoUrl]);
 
   useEffect(() => {
@@ -429,6 +485,8 @@ export default function YouTubePlayer({
     }
 
     return undefined;
+    // Playback helpers use refs and must not recreate the YouTube player.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [playback]);
 
   return (

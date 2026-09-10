@@ -6,8 +6,6 @@ import { createAuthenticationClient } from "../websocket/authentication";
 
 import { createSessionClient } from "../session/sessionClient";
 
-const PLAYBACK_RESYNC_INTERVAL_MS = 5000;
-
 export function useTrainingSession({
   sessionId,
   instructorToken,
@@ -74,11 +72,17 @@ export function useTrainingSession({
   useEffect(() => {
     const sessionClient = sessionClientRef.current;
 
-    if (
-      !sessionClient ||
-      !instructorToken ||
-      state.connectionStatus !== "connected"
-    ) {
+    if (!sessionClient || state.connectionStatus !== "connected") {
+      previousConnectionStatusRef.current = state.connectionStatus;
+
+      return;
+    }
+
+    sessionClient.send({
+      type: "playback:request-state",
+    });
+
+    if (!instructorToken) {
       previousConnectionStatusRef.current = state.connectionStatus;
 
       return;
@@ -130,51 +134,6 @@ export function useTrainingSession({
   function connect() {
     sessionClientRef.current?.connect();
   }
-
-  /*
-   * Periodically repeat the pause/play synchronization pulse.
-   * This lets a refreshed or late-loading player converge with
-   * the rest of the live session after it has connected.
-   */
-  useEffect(() => {
-    if (state.connectionStatus !== "connected") {
-      return undefined;
-    }
-
-    const sendResyncIfConnected = () => {
-      /*
-       * Check the live connection status
-       * rather than relying on a value captured
-       * by the React render that created
-       * this interval.
-       */
-      if (
-        !sessionClientRef.current ||
-        connectionStatusRef.current !== "connected"
-      ) {
-        return;
-      }
-
-      sessionClientRef.current.send({
-        type: "playback:resync",
-      });
-    };
-
-    const initialTimeoutId = window.setTimeout(
-      sendResyncIfConnected,
-      1000,
-    );
-
-    const intervalId = window.setInterval(
-      sendResyncIfConnected,
-      PLAYBACK_RESYNC_INTERVAL_MS,
-    );
-
-    return () => {
-      window.clearTimeout(initialTimeoutId);
-      window.clearInterval(intervalId);
-    };
-  }, [state.connectionStatus]);
 
   /*
    * When a tab becomes visible again,

@@ -201,6 +201,38 @@ describe("useTrainingSession", () => {
     });
   });
 
+  it("requests a private playback snapshot after connecting", () => {
+    let stateListener;
+
+    sessionClient.onStateChange.mockImplementation(
+      (listener) => {
+        stateListener = listener;
+
+        return () => {};
+      },
+    );
+
+    renderHook(() =>
+      useTrainingSession({
+        sessionId: "session-123",
+        instructorToken: null,
+        websocketBaseUrl: "ws://localhost:4000",
+      }),
+    );
+
+    act(() => {
+      stateListener({
+        connectionStatus: "connected",
+        role: "participant",
+        playback: initialState.playback,
+      });
+    });
+
+    expect(sessionClient.send).toHaveBeenCalledWith({
+      type: "playback:request-state",
+    });
+  });
+
   it("authenticates an instructor after the WebSocket connects", async () => {
     let stateListener;
 
@@ -418,7 +450,7 @@ describe("useTrainingSession", () => {
     });
   });
 
-  it("repeats playback resync while connected", () => {
+  it("does not resync automatically when a participant connects", () => {
     vi.useFakeTimers();
 
     let stateListener;
@@ -448,27 +480,15 @@ describe("useTrainingSession", () => {
     });
 
     act(() => {
-      vi.advanceTimersByTime(1000);
+      vi.advanceTimersByTime(6000);
     });
 
     expect(sessionClient.send).toHaveBeenCalledTimes(1);
-    expect(sessionClient.send).toHaveBeenLastCalledWith({
+    expect(sessionClient.send).not.toHaveBeenCalledWith({
       type: "playback:resync",
     });
 
-    act(() => {
-      vi.advanceTimersByTime(5000);
-    });
-
-    expect(sessionClient.send).toHaveBeenCalledTimes(2);
-
     unmount();
-
-    act(() => {
-      vi.advanceTimersByTime(5000);
-    });
-
-    expect(sessionClient.send).toHaveBeenCalledTimes(2);
 
     vi.useRealTimers();
   });
