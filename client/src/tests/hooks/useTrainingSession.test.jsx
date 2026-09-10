@@ -418,6 +418,61 @@ describe("useTrainingSession", () => {
     });
   });
 
+  it("repeats playback resync while connected", () => {
+    vi.useFakeTimers();
+
+    let stateListener;
+
+    sessionClient.onStateChange.mockImplementation(
+      (listener) => {
+        stateListener = listener;
+
+        return () => {};
+      },
+    );
+
+    const { unmount } = renderHook(() =>
+      useTrainingSession({
+        sessionId: "session-123",
+        instructorToken: null,
+        websocketBaseUrl: "ws://localhost:4000",
+      }),
+    );
+
+    act(() => {
+      stateListener({
+        connectionStatus: "connected",
+        role: "participant",
+        playback: initialState.playback,
+      });
+    });
+
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+
+    expect(sessionClient.send).toHaveBeenCalledTimes(1);
+    expect(sessionClient.send).toHaveBeenLastCalledWith({
+      type: "playback:resync",
+    });
+
+    act(() => {
+      vi.advanceTimersByTime(5000);
+    });
+
+    expect(sessionClient.send).toHaveBeenCalledTimes(2);
+
+    unmount();
+
+    act(() => {
+      vi.advanceTimersByTime(5000);
+    });
+
+    expect(sessionClient.send).toHaveBeenCalledTimes(2);
+
+    vi.useRealTimers();
+  });
+
   it("exposes session commands", () => {
     const { result } = renderHook(() =>
       useTrainingSession({

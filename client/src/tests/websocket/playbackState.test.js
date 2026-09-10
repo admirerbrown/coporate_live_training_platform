@@ -22,8 +22,10 @@ describe("playback state adapter", () => {
 
     const nextState = applyPlaybackState(currentState, message);
 
+    // The raw server snapshot is stored as-is. calculateEffectivePosition
+    // is applied later, once, at actual playback time — not here.
     expect(nextState).toEqual({
-      position: 130,
+      position: 125,
       isPlaying: true,
       version: 0,
       updatedAt: "2026-01-01T12:00:00.000Z",
@@ -101,7 +103,13 @@ describe("playback state adapter", () => {
     expect(nextState).toBe(currentState);
   });
 
-  it("uses calculateEffectivePosition for a playing state", () => {
+  it("stores the raw position for a playing state, without pre-computing elapsed time", () => {
+    // Regression test: applyPlaybackState previously called
+    // calculateEffectivePosition and stored the *result* as position,
+    // while still keeping the original updatedAt. Any later consumer
+    // that also calls calculateEffectivePosition (as YouTubePlayer does)
+    // would then double-count the elapsed time. The adapter must only
+    // ever store the server's raw snapshot.
     const currentState = createInitialPlaybackState();
 
     const message = {
@@ -115,9 +123,8 @@ describe("playback state adapter", () => {
 
     const nextState = applyPlaybackState(currentState, message);
 
-    const expectedPosition = calculateEffectivePosition(message);
-
-    expect(nextState.position).toBe(expectedPosition);
+    expect(nextState.position).toBe(125);
+    expect(nextState.position).not.toBe(calculateEffectivePosition(message));
   });
 
   it("preserves the exact position for a paused state", () => {

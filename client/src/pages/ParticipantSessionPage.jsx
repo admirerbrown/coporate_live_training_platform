@@ -16,11 +16,12 @@ export default function ParticipantSessionPage({
       import.meta.env.VITE_WS_BASE_URL,
   });
 
-  const statusLabel = {
-    CREATED: "Waiting to start",
-    LIVE: "Live",
-    ENDED: "Ended",
-  }[session.status] ?? "Unknown";
+  const statusLabel =
+    {
+      CREATED: "Waiting to start",
+      LIVE: "Live",
+      ENDED: "Ended",
+    }[session.status] ?? "Unknown";
 
   return (
     <main>
@@ -57,5 +58,4 @@ export default function ParticipantSessionPage({
       </p>
     </main>
   );
-}
-
+};

@@ -1,7 +1,3 @@
-import {
-  calculateEffectivePosition,
-} from "../../../shared/playbackSync";
-
 const INITIAL_PLAYBACK_STATE = {
   position: 0,
   isPlaying: false,
@@ -16,37 +12,28 @@ export function createInitialPlaybackState() {
   };
 }
 
-export function applyPlaybackState(
-  currentState,
-  message,
-) {
+export function applyPlaybackState(currentState, message) {
   if (!isValidPlaybackStateMessage(message)) {
     return currentState;
   }
 
-  if (
-    message.version <
-    currentState.version
-  ) {
+  if (message.version < currentState.version) {
     return currentState;
   }
 
   if (
-    message.version ===
-      currentState.version &&
-    !isNewerServerTime(
-      currentState.serverTime,
-      message.serverTime,
-    )
+    message.version === currentState.version &&
+    !isNewerServerTime(currentState.serverTime, message.serverTime)
   ) {
     return currentState;
   }
 
-  const position =
-    calculateEffectivePosition(message);
-
+  // Store the server's raw snapshot as-is. calculateEffectivePosition
+  // must only be applied once, at the moment a value is actually used
+  // to drive the player (see YouTubePlayer.jsx) — pre-computing it here
+  // would double-count elapsed time the next time it's calculated.
   return {
-    position,
+    position: Number(message.position),
     isPlaying: message.isPlaying,
     version: message.version,
     updatedAt: message.updatedAt,
@@ -54,35 +41,23 @@ export function applyPlaybackState(
   };
 }
 
-function isNewerServerTime(
-  currentServerTime,
-  incomingServerTime,
-) {
+function isNewerServerTime(currentServerTime, incomingServerTime) {
   if (!currentServerTime) {
     return true;
   }
 
-  const currentTime = Date.parse(
-    currentServerTime,
-  );
+  const currentTime = Date.parse(currentServerTime);
 
-  const incomingTime = Date.parse(
-    incomingServerTime,
-  );
+  const incomingTime = Date.parse(incomingServerTime);
 
-  if (
-    Number.isNaN(currentTime) ||
-    Number.isNaN(incomingTime)
-  ) {
+  if (Number.isNaN(currentTime) || Number.isNaN(incomingTime)) {
     return false;
   }
 
   return incomingTime > currentTime;
 }
 
-function isValidPlaybackStateMessage(
-  message,
-) {
+function isValidPlaybackStateMessage(message) {
   if (
     message === null ||
     typeof message !== "object" ||
@@ -91,47 +66,31 @@ function isValidPlaybackStateMessage(
     return false;
   }
 
-  if (
-    message.type !==
-    "playback:state"
-  ) {
+  if (message.type !== "playback:state") {
     return false;
   }
 
   if (
-    typeof message.position !==
-      "number" ||
-    !Number.isFinite(
-      message.position,
-    )
+    typeof message.position !== "number" ||
+    !Number.isFinite(message.position)
   ) {
     return false;
   }
 
-  if (
-    typeof message.isPlaying !==
-    "boolean"
-  ) {
+  if (typeof message.isPlaying !== "boolean") {
+    return false;
+  }
+
+  if (!Number.isInteger(message.version) || message.version < 0) {
     return false;
   }
 
   if (
-    !Number.isInteger(
-      message.version,
-    ) ||
-    message.version < 0
-  ) {
-    return false;
-  }
-
-  if (
-    typeof message.updatedAt !==
-      "string" ||
-    typeof message.serverTime !==
-      "string"
+    typeof message.updatedAt !== "string" ||
+    typeof message.serverTime !== "string"
   ) {
     return false;
   }
 
   return true;
-};
+}

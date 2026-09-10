@@ -236,6 +236,79 @@ describe("WebSocket playback timing", () => {
     expect(serverTime).toBeLessThanOrEqual(after);
   });
 
+  it("coalesces simultaneous refresh resync requests", async () => {
+    const session = await createSession({
+      isPlaying: true,
+      version: 0,
+    });
+
+    const firstSocket = await connect(session.id);
+    const secondSocket = await connect(session.id);
+
+    await consumeInitialState(firstSocket);
+    await consumeInitialState(secondSocket);
+
+    firstSocket.send(
+      JSON.stringify({
+        type: "playback:resync",
+      }),
+    );
+
+    secondSocket.send(
+      JSON.stringify({
+        type: "playback:resync",
+      }),
+    );
+
+    const [firstPause, secondPause] = await Promise.all([
+      nextMessage(firstSocket),
+      nextMessage(secondSocket),
+    ]);
+
+    const [firstPlay, secondPlay] = await Promise.all([
+      nextMessage(firstSocket),
+      nextMessage(secondSocket),
+    ]);
+
+    expect(firstPause).toMatchObject({
+      type: "playback:state",
+      isPlaying: false,
+      version: 1,
+    });
+
+    expect(secondPause).toMatchObject({
+      type: "playback:state",
+      isPlaying: false,
+      version: 1,
+    });
+
+    expect(firstPlay).toMatchObject({
+      type: "playback:state",
+      isPlaying: true,
+      version: 2,
+    });
+
+    expect(secondPlay).toMatchObject({
+      type: "playback:state",
+      isPlaying: true,
+      version: 2,
+    });
+
+    const result = await pool.query(
+      `
+        SELECT version, is_playing
+        FROM session_playback_state
+        WHERE session_id = $1
+      `,
+      [session.id],
+    );
+
+    expect(result.rows[0]).toEqual({
+      version: 2,
+      is_playing: true,
+    });
+  });
+
   it("produces strictly increasing updatedAt values for sequential playback actions", async () => {
     const session = await createSession();
 

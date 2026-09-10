@@ -1,4 +1,3 @@
-
 import { useEffect, useRef, useState } from "react";
 
 import {
@@ -13,19 +12,36 @@ import {
   getYouTubeVideoId,
 } from "../../youtube/youtubeVideoId";
 
+const DRIFT_THRESHOLD_SECONDS = 1.5;
+
+const SOFT_SYNC_MAX_DRIFT_SECONDS = 4;
+
+const SOFT_SYNC_PLAYBACK_RATE = 1.1;
+
+const SOFT_SYNC_SLOWDOWN_RATE = 0.9;
+
+const NORMAL_PLAYBACK_RATE = 1;
+
+const RECONCILIATION_INTERVAL_MS = 1000;
+
 export default function YouTubePlayer({
   videoUrl,
   playback,
 }) {
   const containerRef = useRef(null);
+
   const playerRef = useRef(null);
+
   const playerReadyRef = useRef(false);
+
   const previousAppliedPlaybackRef =
     useRef(null);
 
-  // Keep the latest playback available to
-  // async callbacks such as YouTube's onReady.
   const playbackRef = useRef(playback);
+
+  const playbackRateRef = useRef(
+    NORMAL_PLAYBACK_RATE,
+  );
 
   const [loadError, setLoadError] =
     useState(null);
@@ -44,14 +60,158 @@ export default function YouTubePlayer({
         ? loadError.message
         : null;
 
-  function applyPlayback(
+  function setPlaybackRate(
+    player,
+    rate,
+  ) {
+    if (
+      playbackRateRef.current ===
+      rate
+    ) {
+      return;
+    }
+
+    player.setPlaybackRate(rate);
+
+    playbackRateRef.current = rate;
+  }
+
+  function resetPlaybackRate(player) {
+    setPlaybackRate(
+      player,
+      NORMAL_PLAYBACK_RATE,
+    );
+  }
+
+  function getEffectivePosition(
+    currentPlayback,
+  ) {
+    return calculateEffectivePosition({
+      ...currentPlayback,
+      serverTime:
+        new Date().toISOString(),
+    });
+  }
+
+  function reconcilePlayback(
+    player,
+    currentPlayback,
+    { forceSeek = false } = {},
+  ) {
+    const effectivePosition =
+      getEffectivePosition(
+        currentPlayback,
+      );
+
+    // The IFrame API exposes getCurrentTime(),
+    // but keep the hard-seek fallback so initialization
+    // and unusual test/dummy players remain safe.
+    const actualPosition =
+      typeof player.getCurrentTime ===
+      "function"
+        ? Number(
+            player.getCurrentTime(),
+          )
+        : Number.NaN;
+
+    if (
+      !Number.isFinite(
+        actualPosition,
+      )
+    ) {
+      resetPlaybackRate(player);
+
+      player.seekTo(
+        effectivePosition,
+        true,
+      );
+
+      previousAppliedPlaybackRef.current =
+        {
+          effectivePosition,
+          isPlaying:
+            currentPlayback.isPlaying,
+        };
+
+      return;
+    }
+
+    const drift =
+      effectivePosition -
+      actualPosition;
+
+    const absoluteDrift =
+      Math.abs(drift);
+
+    if (!currentPlayback.isPlaying) {
+      resetPlaybackRate(player);
+
+      if (
+        forceSeek ||
+        absoluteDrift >
+          DRIFT_THRESHOLD_SECONDS
+      ) {
+        player.seekTo(
+          effectivePosition,
+          true,
+        );
+      }
+
+      previousAppliedPlaybackRef.current =
+        {
+          effectivePosition,
+          isPlaying:
+            currentPlayback.isPlaying,
+        };
+
+      return;
+    }
+
+    if (
+      absoluteDrift <=
+      DRIFT_THRESHOLD_SECONDS
+    ) {
+      resetPlaybackRate(player);
+    } else if (
+      absoluteDrift <=
+      SOFT_SYNC_MAX_DRIFT_SECONDS
+    ) {
+      setPlaybackRate(
+        player,
+        drift > 0
+          ? SOFT_SYNC_PLAYBACK_RATE
+          : SOFT_SYNC_SLOWDOWN_RATE,
+      );
+    } else {
+      resetPlaybackRate(player);
+
+      player.seekTo(
+        effectivePosition,
+        true,
+      );
+    }
+
+    previousAppliedPlaybackRef.current =
+      {
+        effectivePosition,
+        isPlaying:
+          currentPlayback.isPlaying,
+      };
+  }
+
+  function applyInitialPlayback(
     player,
     currentPlayback,
   ) {
+    // Initial application is a hard seek because
+    // the player has just been created and may be
+    // many seconds behind the authoritative session position.
     const effectivePosition =
-      calculateEffectivePosition(
+      getEffectivePosition(
         currentPlayback,
       );
+
+    resetPlaybackRate(player);
 
     player.seekTo(
       effectivePosition,
@@ -64,11 +224,12 @@ export default function YouTubePlayer({
       player.pauseVideo();
     }
 
-    previousAppliedPlaybackRef.current = {
-      effectivePosition,
-      isPlaying:
-        currentPlayback.isPlaying,
-    };
+    previousAppliedPlaybackRef.current =
+      {
+        effectivePosition,
+        isPlaying:
+          currentPlayback.isPlaying,
+      };
   }
 
   useEffect(() => {
@@ -77,6 +238,7 @@ export default function YouTubePlayer({
     }
 
     let cancelled = false;
+    let intervalId = null;
 
     loadYouTubeIframeApi()
       .then(({ Player }) => {
@@ -87,48 +249,52 @@ export default function YouTubePlayer({
           return;
         }
 
-        const player = new Player(
-          containerRef.current,
-          {
-            videoId,
+        const player =
+          new Player(
+            containerRef.current,
+            {
+              videoId,
 
-            playerVars: {
-              controls: 0,
-              disablekb: 1,
-              fs: 0,
-              modestbranding: 1,
-              rel: 0,
-              origin:
-                window.location.origin,
-              playsinline: 1,
-            },
+              playerVars: {
+                controls: 0,
+                disablekb: 1,
+                fs: 0,
+                modestbranding: 1,
+                rel: 0,
+                origin:
+                  window.location.origin,
+                playsinline: 1,
+              },
 
-            events: {
-              onReady(event) {
-                if (cancelled) {
-                  return;
-                }
+              events: {
+                onReady(event) {
+                  if (cancelled) {
+                    return;
+                  }
 
-                if (
-                  playerRef.current !==
-                  event.target
-                ) {
-                  return;
-                }
+                  // Validate against the
+                  // specific player instance
+                  // created by this effect.
+                  if (
+                    event.target !==
+                    player
+                  ) {
+                    return;
+                  }
 
-                playerReadyRef.current =
-                  true;
+                  playerReadyRef.current =
+                    true;
 
-                setLoadError(null);
+                  setLoadError(null);
 
-                applyPlayback(
-                  event.target,
-                  playbackRef.current,
-                );
+                  applyInitialPlayback(
+                    event.target,
+                    playbackRef.current,
+                  );
+                },
               },
             },
-          },
-        );
+          );
 
         if (cancelled) {
           player.destroy();
@@ -136,6 +302,28 @@ export default function YouTubePlayer({
         }
 
         playerRef.current = player;
+
+        // Start reconciliation only after
+        // the player instance exists.
+        //
+        // The callback itself waits for
+        // playerReadyRef.current so it is safe
+        // if YouTube has not fired onReady yet.
+        intervalId =
+          window.setInterval(() => {
+            if (
+              playerRef.current !==
+                player ||
+              !playerReadyRef.current
+            ) {
+              return;
+            }
+
+            reconcilePlayback(
+              player,
+              playbackRef.current,
+            );
+          }, RECONCILIATION_INTERVAL_MS);
       })
       .catch((err) => {
         if (cancelled) {
@@ -144,6 +332,7 @@ export default function YouTubePlayer({
 
         setLoadError({
           videoUrl,
+
           message:
             err instanceof Error
               ? err.message
@@ -154,13 +343,24 @@ export default function YouTubePlayer({
     return () => {
       cancelled = true;
 
+      if (intervalId !== null) {
+        window.clearInterval(
+          intervalId,
+        );
+      }
+
       const player =
         playerRef.current;
 
       playerRef.current = null;
+
       playerReadyRef.current = false;
+
       previousAppliedPlaybackRef.current =
         null;
+
+      playbackRateRef.current =
+        NORMAL_PLAYBACK_RATE;
 
       if (player) {
         player.destroy();
@@ -176,13 +376,14 @@ export default function YouTubePlayer({
       !player ||
       !playerReadyRef.current
     ) {
-      return;
+      return undefined;
     }
 
-    const currentPlayback = playback;
+    const currentPlayback =
+      playback;
 
     const effectivePosition =
-      calculateEffectivePosition(
+      getEffectivePosition(
         currentPlayback,
       );
 
@@ -197,31 +398,37 @@ export default function YouTubePlayer({
       previous?.isPlaying !==
       currentPlayback.isPlaying;
 
-    if (positionChanged) {
-      player.seekTo(
-        effectivePosition,
-        true,
-      );
-    }
-
-    if (playingChanged) {
-      if (currentPlayback.isPlaying) {
-        player.playVideo();
-      } else {
-        player.pauseVideo();
-      }
-    }
-
     if (
       positionChanged ||
       playingChanged
     ) {
-      previousAppliedPlaybackRef.current = {
-        effectivePosition,
-        isPlaying:
-          currentPlayback.isPlaying,
-      };
+      if (playingChanged) {
+        resetPlaybackRate(player);
+
+        if (
+          currentPlayback.isPlaying
+        ) {
+          player.playVideo();
+        } else {
+          player.pauseVideo();
+        }
+      }
+
+      reconcilePlayback(
+        player,
+        currentPlayback,
+        {
+          forceSeek:
+            !currentPlayback.isPlaying &&
+            (
+              positionChanged ||
+              playingChanged
+            ),
+        },
+      );
     }
+
+    return undefined;
   }, [playback]);
 
   return (
@@ -241,5 +448,4 @@ export default function YouTubePlayer({
       )}
     </section>
   );
-}
-;
+};

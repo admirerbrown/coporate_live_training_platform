@@ -11,10 +11,17 @@ const {
   verifyInstructorToken,
 } = require("./services/sessions");
 
+const RESYNC_PAUSE_DURATION_MS = 150;
+
 function attachWebSocketServer(server, db) {
   const connectionsBySession = new Map();
 
-  function createPlaybackStateMessage(state) {
+  const resyncsInProgress = new Set();
+
+  function createPlaybackStateMessage(
+    state,
+    serverTime = new Date().toISOString(),
+  ) {
     return {
       type: "playback:state",
       position: Number(state.position),
@@ -23,23 +30,29 @@ function attachWebSocketServer(server, db) {
       updatedAt: new Date(
         state.updated_at,
       ).toISOString(),
-      serverTime: new Date().toISOString(),
+      serverTime,
     };
   }
 
   function broadcastPlaybackState(
     sessionId,
     state,
+    serverTime,
   ) {
     const connections =
-      connectionsBySession.get(sessionId);
+      connectionsBySession.get(
+        sessionId,
+      );
 
     if (!connections) {
       return;
     }
 
     const message = JSON.stringify(
-      createPlaybackStateMessage(state),
+      createPlaybackStateMessage(
+        state,
+        serverTime,
+      ),
     );
 
     for (const socket of connections) {
@@ -52,9 +65,13 @@ function attachWebSocketServer(server, db) {
     }
   }
 
-  function broadcastSessionEnded(sessionId) {
+  function broadcastSessionEnded(
+    sessionId,
+  ) {
     const connections =
-      connectionsBySession.get(sessionId);
+      connectionsBySession.get(
+        sessionId,
+      );
 
     if (!connections) {
       return;
@@ -79,7 +96,11 @@ function attachWebSocketServer(server, db) {
     }
   }
 
-  function sendError(ws, type, code) {
+  function sendError(
+    ws,
+    type,
+    code,
+  ) {
     ws.send(
       JSON.stringify({
         type,
@@ -114,10 +135,175 @@ function attachWebSocketServer(server, db) {
     return result.rows[0];
   }
 
-  const wss = new WebSocketServer({
-    server,
-    path: "/ws",
-  });
+  /*
+   * Synchronization pulse.
+   *
+   * Any connected member of the session
+   * may request this after a browser reload.
+   *
+   * The synchronization mechanism deliberately
+   * uses the same pause/play sequence that has
+   * already been proven to bring all clients
+   * back onto the same playback position.
+   */
+  function resyncPlayback(
+    sessionId,
+  ) {
+    if (resyncsInProgress.has(sessionId)) {
+      return;
+    }
+
+    resyncsInProgress.add(sessionId);
+
+    return performPlaybackResync(
+      sessionId,
+    ).finally(() => {
+      resyncsInProgress.delete(sessionId);
+    });
+  }
+
+  async function performPlaybackResync(
+    sessionId,
+  ) {
+    const currentState =
+      await getSessionPlaybackState(
+        sessionId,
+      );
+
+    if (!currentState) {
+      return;
+    }
+
+    if (currentState.status !== "LIVE") {
+      return;
+    }
+
+    if (!currentState.is_playing) {
+      return;
+    }
+
+    /*
+     * Capture the exact effective position
+     * before pausing.
+     */
+    const pauseServerTime =
+      new Date().toISOString();
+
+    const effectivePosition =
+      calculateEffectivePosition({
+        position: Number(
+          currentState.position,
+        ),
+        isPlaying:
+          currentState.is_playing,
+        updatedAt: new Date(
+          currentState.updated_at,
+        ).toISOString(),
+        serverTime:
+          pauseServerTime,
+      });
+
+    /*
+     * PAUSE
+     *
+     * Establish a fresh authoritative
+     * position and broadcast the paused state.
+     */
+    const pauseResult =
+      await db.query(
+        `
+          UPDATE session_playback_state
+          SET
+            position = $1,
+            is_playing = false,
+            version = version + 1,
+            updated_at = now()
+          WHERE session_id = $2
+          RETURNING
+            position,
+            is_playing,
+            version,
+            updated_at
+        `,
+        [
+          effectivePosition,
+          sessionId,
+        ],
+      );
+
+    if (
+      pauseResult.rows.length === 0
+    ) {
+      return;
+    }
+
+    const pauseState =
+      pauseResult.rows[0];
+
+    broadcastPlaybackState(
+      sessionId,
+      pauseState,
+    );
+
+    /*
+     * Allow connected clients a brief window
+     * to process the pause before the play
+     * state arrives.
+     */
+    await new Promise((resolve) => {
+      setTimeout(
+        resolve,
+        RESYNC_PAUSE_DURATION_MS,
+      );
+    });
+
+    /*
+     * PLAY
+     *
+     * Resume immediately from exactly the
+     * position established by the pause.
+     */
+    const playResult =
+      await db.query(
+        `
+          UPDATE session_playback_state
+          SET
+            position = $1,
+            is_playing = true,
+            version = version + 1,
+            updated_at = now()
+          WHERE session_id = $2
+          RETURNING
+            position,
+            is_playing,
+            version,
+            updated_at
+        `,
+        [
+          Number(
+            pauseState.position,
+          ),
+          sessionId,
+        ],
+      );
+
+    if (
+      playResult.rows.length === 0
+    ) {
+      return;
+    }
+
+    broadcastPlaybackState(
+      sessionId,
+      playResult.rows[0],
+    );
+  }
+
+  const wss =
+    new WebSocketServer({
+      server,
+      path: "/ws",
+    });
 
   wss.on(
     "connection",
@@ -175,8 +361,10 @@ function attachWebSocketServer(server, db) {
         .get(sessionId)
         .add(ws);
 
-      // Send the current playback state
-      // immediately when the socket connects.
+      /*
+       * Send the current playback state
+       * immediately when the socket connects.
+       */
       ws.send(
         JSON.stringify(
           createPlaybackStateMessage(
@@ -189,13 +377,15 @@ function attachWebSocketServer(server, db) {
         "message",
         async (data) => {
           try {
-            const message = JSON.parse(
-              data.toString(),
-            );
+            const message =
+              JSON.parse(
+                data.toString(),
+              );
 
             if (
               message === null ||
-              typeof message !== "object" ||
+              typeof message !==
+                "object" ||
               Array.isArray(message)
             ) {
               sendError(
@@ -207,8 +397,12 @@ function attachWebSocketServer(server, db) {
               return;
             }
 
-            // Instructor authentication.
-            if (message.type === "auth") {
+            /*
+             * Instructor authentication.
+             */
+            if (
+              message.type === "auth"
+            ) {
               const authorization =
                 await verifyInstructorToken(
                   {
@@ -248,10 +442,6 @@ function attachWebSocketServer(server, db) {
              *
              * Available to instructors and
              * participants.
-             *
-             * Does not mutate the database.
-             * Does not increment the version.
-             * Does not broadcast to other sockets.
              */
             if (
               message.type ===
@@ -302,17 +492,45 @@ function attachWebSocketServer(server, db) {
             }
 
             /*
+             * Reload synchronization pulse.
+             *
+             * Available to any connected
+             * member of the session.
+             */
+            if (
+              message.type ===
+              "playback:resync"
+            ) {
+              try {
+                await resyncPlayback(
+                  sessionId,
+                );
+              } catch (error) {
+                console.error(
+                  "Playback resync error:",
+                  error,
+                );
+
+                sendError(
+                  ws,
+                  "playback:error",
+                  "RESYNC_FAILED",
+                );
+              }
+
+              return;
+            }
+
+            /*
              * Session lifecycle.
              *
              * The REST /end endpoint is the
              * authoritative operation that changes
              * the database status to ENDED.
-             *
-             * The WebSocket message tells connected
-             * clients about that completed change.
              */
             if (
-              message.type === "session:end"
+              message.type ===
+              "session:end"
             ) {
               if (!ws.isInstructor) {
                 sendError(
@@ -367,8 +585,10 @@ function attachWebSocketServer(server, db) {
               message.type ===
                 "playback:seek";
 
-            // Only authenticated instructors
-            // can control playback.
+            /*
+             * Only authenticated instructors
+             * can control playback.
+             */
             if (isPlaybackCommand) {
               if (!ws.isInstructor) {
                 sendError(
@@ -380,8 +600,6 @@ function attachWebSocketServer(server, db) {
                 return;
               }
 
-              // The session lifecycle is also
-              // a playback-control boundary.
               const currentState =
                 await getSessionPlaybackState(
                   sessionId,
