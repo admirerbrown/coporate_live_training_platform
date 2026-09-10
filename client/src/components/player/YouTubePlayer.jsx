@@ -470,6 +470,20 @@ export default function YouTubePlayer({
         }
       }
 
+      if (
+        !positionChanged &&
+        playingChanged
+      ) {
+        previousAppliedPlaybackRef.current =
+          {
+            effectivePosition,
+            isPlaying:
+              currentPlayback.isPlaying,
+          };
+
+        return undefined;
+      }
+
       reconcilePlayback(
         player,
         currentPlayback,

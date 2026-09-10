@@ -191,228 +191,228 @@ describe("YouTubePlayer", () => {
     expect(calledWith.serverTime).not.toBe(basePlayback.serverTime);
     expect(calledServerTime).toBeGreaterThanOrEqual(before);
     expect(calledServerTime).toBeLessThanOrEqual(after);
+  });
 
-    it("plays when playback changes to playing without seeking unnecessarily", async () => {
-      const { rerender } = render(
-        <YouTubePlayer
-          videoUrl="https://www.youtube.com/watch?v=M7lc1UVf-VE"
-          playback={{
-            ...basePlayback,
-            isPlaying: false,
-          }}
-        />,
-      );
+  it("plays when playback changes to playing without seeking unnecessarily", async () => {
+    const { rerender } = render(
+      <YouTubePlayer
+        videoUrl="https://www.youtube.com/watch?v=M7lc1UVf-VE"
+        playback={{
+          ...basePlayback,
+          isPlaying: false,
+        }}
+      />,
+    );
 
-      await waitFor(() => {
-        expect(onReady).toEqual(expect.any(Function));
-      });
-
-      onReady({
-        target: player,
-      });
-
-      player.seekTo.mockClear();
-      player.playVideo.mockClear();
-      player.pauseVideo.mockClear();
-
-      rerender(
-        <YouTubePlayer
-          videoUrl="https://www.youtube.com/watch?v=M7lc1UVf-VE"
-          playback={{
-            ...basePlayback,
-            isPlaying: true,
-          }}
-        />,
-      );
-
-      await waitFor(() => {
-        expect(player.playVideo).toHaveBeenCalledTimes(1);
-      });
-
-      expect(player.seekTo).not.toHaveBeenCalled();
-      expect(player.pauseVideo).not.toHaveBeenCalled();
+    await waitFor(() => {
+      expect(onReady).toEqual(expect.any(Function));
     });
 
-    it("pauses when playback changes to paused without seeking unnecessarily", async () => {
-      const { rerender } = render(
-        <YouTubePlayer
-          videoUrl="https://www.youtube.com/watch?v=M7lc1UVf-VE"
-          playback={basePlayback}
-        />,
-      );
-
-      await waitFor(() => {
-        expect(onReady).toEqual(expect.any(Function));
-      });
-
-      onReady({
-        target: player,
-      });
-
-      player.seekTo.mockClear();
-      player.playVideo.mockClear();
-      player.pauseVideo.mockClear();
-
-      rerender(
-        <YouTubePlayer
-          videoUrl="https://www.youtube.com/watch?v=M7lc1UVf-VE"
-          playback={{
-            ...basePlayback,
-            isPlaying: false,
-          }}
-        />,
-      );
-
-      await waitFor(() => {
-        expect(player.pauseVideo).toHaveBeenCalledTimes(1);
-      });
-
-      expect(player.seekTo).not.toHaveBeenCalled();
-      expect(player.playVideo).not.toHaveBeenCalled();
+    onReady({
+      target: player,
     });
 
-    it("seeks when the playback position changes without changing play state", async () => {
-      const { rerender } = render(
-        <YouTubePlayer
-          videoUrl="https://www.youtube.com/watch?v=M7lc1UVf-VE"
-          playback={basePlayback}
-        />,
-      );
+    player.seekTo.mockClear();
+    player.playVideo.mockClear();
+    player.pauseVideo.mockClear();
 
-      await waitFor(() => {
-        expect(onReady).toEqual(expect.any(Function));
-      });
+    rerender(
+      <YouTubePlayer
+        videoUrl="https://www.youtube.com/watch?v=M7lc1UVf-VE"
+        playback={{
+          ...basePlayback,
+          isPlaying: true,
+        }}
+      />,
+    );
 
-      onReady({
-        target: player,
-      });
-
-      player.seekTo.mockClear();
-      player.playVideo.mockClear();
-      player.pauseVideo.mockClear();
-
-      calculateEffectivePosition.mockReturnValue(60);
-
-      rerender(
-        <YouTubePlayer
-          videoUrl="https://www.youtube.com/watch?v=M7lc1UVf-VE"
-          playback={{
-            ...basePlayback,
-            position: 60,
-            version: 2,
-          }}
-        />,
-      );
-
-      await waitFor(() => {
-        expect(player.seekTo).toHaveBeenCalledWith(60, true);
-      });
-
-      expect(player.playVideo).not.toHaveBeenCalled();
-      expect(player.pauseVideo).not.toHaveBeenCalled();
+    await waitFor(() => {
+      expect(player.playVideo).toHaveBeenCalledTimes(1);
     });
 
-    it("does not resynchronize the player when playback props are unchanged", async () => {
-      const { rerender } = render(
-        <YouTubePlayer
-          videoUrl="https://www.youtube.com/watch?v=M7lc1UVf-VE"
-          playback={basePlayback}
-        />,
-      );
+    expect(player.seekTo).not.toHaveBeenCalled();
+    expect(player.pauseVideo).not.toHaveBeenCalled();
+  });
 
-      await waitFor(() => {
-        expect(onReady).toEqual(expect.any(Function));
-      });
+  it("pauses when playback changes to paused without seeking unnecessarily", async () => {
+    const { rerender } = render(
+      <YouTubePlayer
+        videoUrl="https://www.youtube.com/watch?v=M7lc1UVf-VE"
+        playback={basePlayback}
+      />,
+    );
 
-      onReady({
-        target: player,
-      });
-
-      player.seekTo.mockClear();
-      player.playVideo.mockClear();
-      player.pauseVideo.mockClear();
-      calculateEffectivePosition.mockClear();
-
-      rerender(
-        <YouTubePlayer
-          videoUrl="https://www.youtube.com/watch?v=M7lc1UVf-VE"
-          playback={{
-            ...basePlayback,
-          }}
-        />,
-      );
-
-      expect(player.seekTo).not.toHaveBeenCalled();
-      expect(player.playVideo).not.toHaveBeenCalled();
-      expect(player.pauseVideo).not.toHaveBeenCalled();
+    await waitFor(() => {
+      expect(onReady).toEqual(expect.any(Function));
     });
 
-    it("shows an error when the YouTube API fails to load", async () => {
-      loadYouTubeIframeApi.mockRejectedValue(
-        new Error("Failed to load YouTube IFrame API"),
-      );
-
-      render(
-        <YouTubePlayer
-          videoUrl="https://www.youtube.com/watch?v=M7lc1UVf-VE"
-          playback={basePlayback}
-        />,
-      );
-
-      expect(await screen.findByRole("alert")).toHaveTextContent(
-        "Failed to load YouTube IFrame API",
-      );
-
-      expect(Player).not.toHaveBeenCalled();
+    onReady({
+      target: player,
     });
 
-    it("does not create or control a player if unmounted before initialization completes", async () => {
-      let resolveApi;
+    player.seekTo.mockClear();
+    player.playVideo.mockClear();
+    player.pauseVideo.mockClear();
 
-      loadYouTubeIframeApi.mockReturnValue(
-        new Promise((resolve) => {
-          resolveApi = resolve;
-        }),
-      );
+    rerender(
+      <YouTubePlayer
+        videoUrl="https://www.youtube.com/watch?v=M7lc1UVf-VE"
+        playback={{
+          ...basePlayback,
+          isPlaying: false,
+        }}
+      />,
+    );
 
-      const { unmount } = render(
-        <YouTubePlayer
-          videoUrl="https://www.youtube.com/watch?v=M7lc1UVf-VE"
-          playback={basePlayback}
-        />,
-      );
-
-      unmount();
-
-      resolveApi({
-        Player,
-      });
-
-      await Promise.resolve();
-
-      expect(Player).not.toHaveBeenCalled();
-      expect(player.destroy).not.toHaveBeenCalled();
+    await waitFor(() => {
+      expect(player.pauseVideo).toHaveBeenCalledTimes(1);
     });
 
-    it("destroys the player on unmount after initialization", async () => {
-      const { unmount } = render(
-        <YouTubePlayer
-          videoUrl="https://www.youtube.com/watch?v=M7lc1UVf-VE"
-          playback={basePlayback}
-        />,
-      );
+    expect(player.seekTo).not.toHaveBeenCalled();
+    expect(player.playVideo).not.toHaveBeenCalled();
+  });
 
-      await waitFor(() => {
-        expect(onReady).toEqual(expect.any(Function));
-      });
+  it("seeks when the playback position changes without changing play state", async () => {
+    const { rerender } = render(
+      <YouTubePlayer
+        videoUrl="https://www.youtube.com/watch?v=M7lc1UVf-VE"
+        playback={basePlayback}
+      />,
+    );
 
-      onReady({
-        target: player,
-      });
-
-      unmount();
-
-      expect(player.destroy).toHaveBeenCalledTimes(1);
+    await waitFor(() => {
+      expect(onReady).toEqual(expect.any(Function));
     });
+
+    onReady({
+      target: player,
+    });
+
+    player.seekTo.mockClear();
+    player.playVideo.mockClear();
+    player.pauseVideo.mockClear();
+
+    calculateEffectivePosition.mockReturnValue(60);
+
+    rerender(
+      <YouTubePlayer
+        videoUrl="https://www.youtube.com/watch?v=M7lc1UVf-VE"
+        playback={{
+          ...basePlayback,
+          position: 60,
+          version: 2,
+        }}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(player.seekTo).toHaveBeenCalledWith(60, true);
+    });
+
+    expect(player.playVideo).not.toHaveBeenCalled();
+    expect(player.pauseVideo).not.toHaveBeenCalled();
+  });
+
+  it("does not resynchronize the player when playback props are unchanged", async () => {
+    const { rerender } = render(
+      <YouTubePlayer
+        videoUrl="https://www.youtube.com/watch?v=M7lc1UVf-VE"
+        playback={basePlayback}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(onReady).toEqual(expect.any(Function));
+    });
+
+    onReady({
+      target: player,
+    });
+
+    player.seekTo.mockClear();
+    player.playVideo.mockClear();
+    player.pauseVideo.mockClear();
+    calculateEffectivePosition.mockClear();
+
+    rerender(
+      <YouTubePlayer
+        videoUrl="https://www.youtube.com/watch?v=M7lc1UVf-VE"
+        playback={{
+          ...basePlayback,
+        }}
+      />,
+    );
+
+    expect(player.seekTo).not.toHaveBeenCalled();
+    expect(player.playVideo).not.toHaveBeenCalled();
+    expect(player.pauseVideo).not.toHaveBeenCalled();
+  });
+
+  it("shows an error when the YouTube API fails to load", async () => {
+    loadYouTubeIframeApi.mockRejectedValue(
+      new Error("Failed to load YouTube IFrame API"),
+    );
+
+    render(
+      <YouTubePlayer
+        videoUrl="https://www.youtube.com/watch?v=M7lc1UVf-VE"
+        playback={basePlayback}
+      />,
+    );
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Failed to load YouTube IFrame API",
+    );
+
+    expect(Player).not.toHaveBeenCalled();
+  });
+
+  it("does not create or control a player if unmounted before initialization completes", async () => {
+    let resolveApi;
+
+    loadYouTubeIframeApi.mockReturnValue(
+      new Promise((resolve) => {
+        resolveApi = resolve;
+      }),
+    );
+
+    const { unmount } = render(
+      <YouTubePlayer
+        videoUrl="https://www.youtube.com/watch?v=M7lc1UVf-VE"
+        playback={basePlayback}
+      />,
+    );
+
+    unmount();
+
+    resolveApi({
+      Player,
+    });
+
+    await Promise.resolve();
+
+    expect(Player).not.toHaveBeenCalled();
+    expect(player.destroy).not.toHaveBeenCalled();
+  });
+
+  it("destroys the player on unmount after initialization", async () => {
+    const { unmount } = render(
+      <YouTubePlayer
+        videoUrl="https://www.youtube.com/watch?v=M7lc1UVf-VE"
+        playback={basePlayback}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(onReady).toEqual(expect.any(Function));
+    });
+
+    onReady({
+      target: player,
+    });
+
+    unmount();
+
+    expect(player.destroy).toHaveBeenCalledTimes(1);
   });
 });

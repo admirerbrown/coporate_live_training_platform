@@ -70,7 +70,7 @@ describe("sessionClient playback integration", () => {
       connectionStatus: "disconnected",
       role: "participant",
       playback: {
-        position: 130,
+        position: 125,
         isPlaying: true,
         version: 0,
         updatedAt:
@@ -122,7 +122,7 @@ describe("sessionClient playback integration", () => {
     expect(
       sessionClient.getState().playback,
     ).toEqual({
-      position: 130,
+      position: 125,
       isPlaying: true,
       version: 2,
       updatedAt:
