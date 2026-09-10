@@ -58,6 +58,7 @@ export default function CreateSessionForm({ onSuccess }) {
 
         <input
           id="youtube-url"
+          aria-label="Video URL (YouTube URL)"
           name="youtubeUrl"
           type="url"
           value={youtubeUrl}

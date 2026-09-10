@@ -44,7 +44,7 @@ export default function ParticipantSessionPage({
             <div className="flex flex-wrap items-center gap-4"><span className="inline-flex shrink-0 items-center gap-2 rounded-full border border-[#ff765f]/50 bg-[#ff765f]/15 px-3 py-1 font-mono text-[10px] font-bold tracking-[0.12em] text-[#ffd7cf] uppercase"><span className="size-1.5 rounded-full bg-[#c8f169] shadow-[0_0_0_4px_rgba(200,241,105,0.18)]" />{statusLabel}</span><p className="hidden items-center gap-2 font-mono text-xs text-white/55 sm:flex"><span className="size-2 rounded-full bg-[#c8f169] shadow-[0_0_0_4px_rgba(200,241,105,0.2)]" /><strong className="text-[#e9ffc0]">{connectionStatus}</strong></p></div>
           </div>
           <div className="flex min-w-0 items-center justify-end sm:pl-1">
-            <p className="shrink-0 whitespace-nowrap border-l border-white/15 pl-4 font-mono text-[10px] text-[#ffd7cf] sm:pl-5 sm:text-xs"><span className="mr-1 text-white/40">Participant:</span>{" "}{displayParticipantName}</p>
+            <p className="shrink-0 whitespace-nowrap border-l border-white/15 pl-4 font-mono text-[10px] text-[#ffd7cf] sm:pl-5 sm:text-xs"><span className="mr-1 text-white/40">You:</span>{" "}{displayParticipantName}</p>
           </div>
           <div className="min-w-0 text-center sm:absolute sm:left-1/2 sm:top-1/2 sm:w-[min(52%,30rem)] sm:-translate-x-1/2 sm:-translate-y-1/2">
             <h1 aria-label={session.name} className="truncate font-display text-xl font-bold leading-tight tracking-tight text-white sm:text-2xl"><span className="mr-2 text-white/40">Session:</span>{" "}{session.name}</h1>
@@ -54,7 +54,7 @@ export default function ParticipantSessionPage({
 
         <div className="flex min-h-0 flex-1 flex-col gap-3 lg:h-full lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(240px,0.29fr)] lg:items-stretch lg:gap-5">
           <section className="flex min-h-32 min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border border-white/12 bg-[#25243a] p-2 shadow-[0_30px_90px_rgba(0,0,0,0.32)] lg:h-full lg:min-h-0" aria-label="Training video">
-            <div className="mb-2 flex items-center justify-between px-2 pt-1 font-mono text-[10px] tracking-[0.14em] uppercase"><span className="text-white/45">Broadcast / {statusLabel}</span><span className={playback.isPlaying ? "text-[#c8f169]" : "font-bold text-[#ff765f]"}>{playbackLabel}</span></div>
+            <div className="mb-2 flex items-center justify-between px-2 pt-1 font-mono text-[10px] tracking-[0.14em] uppercase"><span className="text-white/45">Broadcast / Room feed</span><span className={playback.isPlaying ? "text-[#c8f169]" : "font-bold text-[#ff765f]"}>{playbackLabel}</span></div>
             <YouTubePlayer
               className="min-h-0 h-full w-full flex-1 aspect-auto overflow-hidden rounded-lg"
               videoUrl={session.youtubeUrl}
@@ -75,7 +75,7 @@ export default function ParticipantSessionPage({
               <p className="text-sm font-semibold text-white lg:text-lg">{role === "participant" ? "You are viewing this training session." : "Participant access is initializing."}</p>
               <p className="mt-2 hidden text-sm leading-relaxed text-white/50 lg:mt-3 lg:block">The instructor controls playback for everyone in this room. Your view follows along automatically.</p>
             </section>
-            <p className="col-span-2 hidden px-1 pt-0 font-mono text-[10px] tracking-[0.16em] text-white/35 uppercase lg:col-span-1 lg:block lg:pt-2">Synchronized learning / {statusLabel}</p>
+            <p className="col-span-2 hidden px-1 pt-0 font-mono text-[10px] tracking-[0.16em] text-white/35 uppercase lg:col-span-1 lg:block lg:pt-2">Synchronized learning / Room feed</p>
           </aside>
         </div>
       </div>

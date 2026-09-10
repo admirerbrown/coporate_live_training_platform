@@ -167,7 +167,7 @@ export default function InstructorSessionPage({ session }) {
 
         <div className="grid min-h-0 flex-1 gap-4 overflow-hidden lg:h-full lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.34fr)] lg:gap-5">
           <section className="flex min-h-32 min-w-0 flex-col overflow-hidden rounded-2xl border border-[#171525]/15 bg-[#e6e0d6] p-2 shadow-[0_30px_90px_rgba(43,34,27,0.14)] lg:h-full lg:min-h-0" aria-label="Training video">
-            <div className="mb-2 flex items-center justify-between px-2 pt-1 font-mono text-[10px] tracking-[0.14em] uppercase"><span className="text-[#171525]/45">Broadcast / Room feed</span><span className={sessionStatus === "LIVE" ? "text-[#687443]" : "font-bold text-[#9f5d50]"}>{sessionStatus === "LIVE" ? "Live to room" : sessionStatus === "CREATED" ? "Ready to start" : "Room closed"}</span></div>
+            <div className="mb-2 flex items-center justify-between px-2 pt-1 font-mono text-[10px] tracking-[0.14em] uppercase"><span className="text-[#171525]/45">Broadcast / Room feed</span><span className={sessionStatus === "LIVE" ? "text-[#687443]" : "font-bold text-[#9f5d50]"}>{sessionStatus === "LIVE" ? "Live to room" : sessionStatus === "CREATED" ? "Standby" : "Room closed"}</span></div>
             <YouTubePlayer className="min-h-0 h-full w-full flex-1 aspect-auto overflow-hidden rounded-lg" videoUrl={session.youtubeUrl} playback={playback} />
           </section>
 
