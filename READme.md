@@ -492,6 +492,46 @@ If a participant temporarily loses their WebSocket connection:
 - the client should resynchronize
 - stale local state must not override current server state
 
+## Refresh Synchronization Incident
+
+### Problem
+
+Refreshing either the instructor or participant browser during a live session
+could leave that browser behind the other clients. The refreshed client had to
+catch up after its WebSocket connection, React state, YouTube player, and
+autoplay state initialized. In particular, the player could receive the right
+position but lose time between the initial `seekTo` call and the moment
+YouTube actually entered the `PLAYING` state.
+
+An early workaround periodically sent a pause/play synchronization pulse from
+connected clients. That made the clients converge, but it also caused the
+entire session to visibly pause and resume at regular intervals. It was not a
+valid product behavior because a participant refresh should not interrupt
+everyone else.
+
+### Solution
+
+Refresh and reconnection synchronization is automatic and scoped to the
+client that refreshed:
+
+1. When the WebSocket becomes connected, the client requests the current
+   playback snapshot with `playback:request-state`.
+2. The server sends that snapshot only to the requesting socket. It does not
+   broadcast a pause/play event.
+3. The snapshot includes the authoritative position, playing state, version,
+   `updatedAt`, and `serverTime`.
+4. The refreshed player calculates the effective live position when it is
+   ready, seeks there, and applies the playing or paused state.
+5. When YouTube confirms that playback has entered `PLAYING`, the client
+   calculates the position again and performs one local alignment for that
+   playback version. This compensates for player startup time without
+   disturbing the other clients.
+
+The server retains version checks so stale snapshots cannot replace newer
+state. The hard pause/play resynchronization path remains an internal server
+operation for synchronization testing and is not exposed as a product
+control.
+
 ---
 
 # 16. Preventing Synchronization Loops

@@ -248,6 +248,9 @@ describe("WebSocket playback timing", () => {
     await consumeInitialState(firstSocket);
     await consumeInitialState(secondSocket);
 
+    await authenticate(firstSocket, session.instructor_token);
+    await authenticate(secondSocket, session.instructor_token);
+
     firstSocket.send(
       JSON.stringify({
         type: "playback:resync",

@@ -492,15 +492,22 @@ function attachWebSocketServer(server, db) {
             }
 
             /*
-             * Reload synchronization pulse.
-             *
-             * Available to any connected
-             * member of the session.
+             * Instructor-triggered synchronization pulse.
              */
             if (
               message.type ===
               "playback:resync"
             ) {
+              if (!ws.isInstructor) {
+                sendError(
+                  ws,
+                  "playback:error",
+                  "UNAUTHORIZED",
+                );
+
+                return;
+              }
+
               try {
                 await resyncPlayback(
                   sessionId,
