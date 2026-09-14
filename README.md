@@ -1,6 +1,6 @@
 # Corporate Live Training Platform
 
-A focused full-stack application for instructor-led YouTube training sessions. An instructor controls playback and connected participants follow the same authoritative session state in real time.
+A focused product-management tool for running instructor-led Video training sessions. Product managers can coordinate live training, control playback, and keep connected participants aligned through one authoritative session state in real time.
 
 ## What It Does
 
