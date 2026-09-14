@@ -15,6 +15,8 @@ import ParticipantSessionPage from "./pages/ParticipantSessionPage";
 
 import { getSession } from "./api/sessions";
 
+import { loadYouTubeIframeApi } from "./youtube/youtubeApi";
+
 const instructorTokenKey = (sessionId) =>
   `training:instructor-token:${sessionId}`;
 
@@ -58,6 +60,8 @@ function SessionRouteLoader({ children }) {
 
   useEffect(() => {
     let cancelled = false;
+
+    loadYouTubeIframeApi().catch(() => {});
 
     getSession(sessionId)
       .then((session) => {

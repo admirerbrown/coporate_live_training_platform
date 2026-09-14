@@ -54,6 +54,9 @@ export default function YouTubePlayer({
   const [loadError, setLoadError] =
     useState(null);
 
+  const [playerReady, setPlayerReady] =
+    useState(false);
+
   useEffect(() => {
     playbackRef.current = playback;
   }, [playback]);
@@ -331,6 +334,8 @@ export default function YouTubePlayer({
                   playerReadyRef.current =
                     true;
 
+                  setPlayerReady(true);
+
                   setLoadError(null);
 
                   if (typeof onDurationChange === "function") {
@@ -404,6 +409,8 @@ export default function YouTubePlayer({
               ? err.message
               : "Failed to load YouTube player",
         });
+
+        setPlayerReady(false);
       });
 
     return () => {
@@ -525,14 +532,21 @@ export default function YouTubePlayer({
           {error}
         </div>
       ) : (
-        <div
-          ref={containerRef}
-          aria-label="Training video"
-          className="size-full"
-          style={{
-            pointerEvents: "none",
-          }}
-        />
+        <>
+          {!playerReady && (
+            <div role="status" aria-live="polite">
+              Loading video...
+            </div>
+          )}
+          <div
+            ref={containerRef}
+            aria-label="Training video"
+            className="size-full"
+            style={{
+              pointerEvents: "none",
+            }}
+          />
+        </>
       )}
     </section>
   );
