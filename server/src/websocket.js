@@ -397,6 +397,22 @@ function attachWebSocketServer(server, db) {
               return;
             }
 
+            if (
+              message.type ===
+                "clock:sync" &&
+              Number.isFinite(message.t0)
+            ) {
+              ws.send(
+                JSON.stringify({
+                  type: "clock:sync",
+                  t0: message.t0,
+                  serverTime: Date.now(),
+                }),
+              );
+
+              return;
+            }
+
             /*
              * Instructor authentication.
              */

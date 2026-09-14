@@ -130,6 +130,8 @@ describe(
 
           role: "participant",
 
+          clockOffsetMs: 0,
+
           playback: {
             position: 0,
             isPlaying: false,

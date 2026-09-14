@@ -11,6 +11,7 @@ export default function ParticipantSessionPage({
   const {
     connectionStatus,
     role,
+    clockOffsetMs,
     playback,
   } = useTrainingSession({
     sessionId: session.id,
@@ -59,6 +60,7 @@ export default function ParticipantSessionPage({
               className="min-h-0 h-full w-full flex-1 aspect-auto overflow-hidden rounded-lg"
               videoUrl={session.youtubeUrl}
               playback={playback}
+              clockOffsetMs={clockOffsetMs}
               onDurationChange={setVideoDuration}
             />
           </section>

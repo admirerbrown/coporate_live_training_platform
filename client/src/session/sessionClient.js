@@ -14,6 +14,11 @@ export function createSessionClient({
   let state = {
     connectionStatus: "disconnected",
     role: "participant",
+    clockOffsetMs:
+      typeof socketClient.getClockOffset ===
+      "function"
+        ? socketClient.getClockOffset()
+        : 0,
     playback,
   };
 
@@ -100,6 +105,16 @@ export function createSessionClient({
       },
     );
 
+  const unsubscribeClockOffset =
+    typeof socketClient.onClockOffsetChange ===
+    "function"
+      ? socketClient.onClockOffsetChange(
+          (clockOffsetMs) => {
+            updateState({ clockOffsetMs });
+          },
+        )
+      : () => {};
+
   function connect() {
     if (destroyed) {
       return;
@@ -160,6 +175,7 @@ export function createSessionClient({
     unsubscribeStatus();
     unsubscribeMessage();
     unsubscribeRole();
+    unsubscribeClockOffset();
 
     stateListeners.clear();
   }

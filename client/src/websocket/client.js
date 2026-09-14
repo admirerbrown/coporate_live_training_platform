@@ -3,12 +3,18 @@ export function createWebSocketClient({
   sessionId,
   WebSocketImpl = WebSocket,
 }) {
+  const CLOCK_SYNC_INTERVAL_MS = 30000;
+
   let socket = null;
   let status = "disconnected";
+  let clockOffsetMs = 0;
+  let bestClockRttMs = Number.POSITIVE_INFINITY;
+  let clockSyncIntervalId = null;
 
   const statusListeners = new Set();
   const messageListeners = new Set();
   const errorListeners = new Set();
+  const clockOffsetListeners = new Set();
 
   function setStatus(nextStatus) {
     if (status === nextStatus) {
@@ -29,6 +35,56 @@ export function createWebSocketClient({
     return `${normalizedBaseUrl}/ws?sessionId=${encodeURIComponent(
       sessionId,
     )}`;
+  }
+
+  function notifyClockOffsetChange() {
+    for (const listener of clockOffsetListeners) {
+      listener(clockOffsetMs);
+    }
+  }
+
+  function synchronizeClock() {
+    if (!socket || socket.readyState !== WebSocketImpl.OPEN) {
+      return;
+    }
+
+    send({
+      type: "clock:sync",
+      t0: Date.now(),
+    });
+  }
+
+  function handleClockSync(message) {
+    const t2 = Date.now();
+    const t0 = Number(message.t0);
+    const serverTime = Number(message.serverTime);
+
+    if (
+      !Number.isFinite(t0) ||
+      !Number.isFinite(serverTime) ||
+      t2 < t0
+    ) {
+      return;
+    }
+
+    const rttMs = t2 - t0;
+
+    if (rttMs >= bestClockRttMs) {
+      return;
+    }
+
+    bestClockRttMs = rttMs;
+    clockOffsetMs =
+      serverTime - (t0 + rttMs / 2);
+
+    notifyClockOffsetChange();
+  }
+
+  function stopClockSynchronization() {
+    if (clockSyncIntervalId !== null) {
+      clearInterval(clockSyncIntervalId);
+      clockSyncIntervalId = null;
+    }
   }
 
   function connect() {
@@ -52,6 +108,14 @@ export function createWebSocketClient({
 
     socket.onopen = () => {
       setStatus("connected");
+
+      bestClockRttMs = Number.POSITIVE_INFINITY;
+      synchronizeClock();
+      stopClockSynchronization();
+      clockSyncIntervalId = setInterval(
+        synchronizeClock,
+        CLOCK_SYNC_INTERVAL_MS,
+      );
     };
 
     socket.onmessage = (event) => {
@@ -62,6 +126,10 @@ export function createWebSocketClient({
             : JSON.parse(
                 String(event.data),
               );
+
+        if (message.type === "clock:sync") {
+          handleClockSync(message);
+        }
 
         for (const listener of messageListeners) {
           listener(message);
@@ -82,6 +150,7 @@ export function createWebSocketClient({
     };
 
     socket.onclose = () => {
+      stopClockSynchronization();
       socket = null;
       setStatus("disconnected");
     };
@@ -125,6 +194,7 @@ export function createWebSocketClient({
     const currentSocket = socket;
 
     socket = null;
+    stopClockSynchronization();
 
     if (
       currentSocket.readyState ===
@@ -162,6 +232,18 @@ export function createWebSocketClient({
     };
   }
 
+  function onClockOffsetChange(listener) {
+    clockOffsetListeners.add(listener);
+
+    return () => {
+      clockOffsetListeners.delete(listener);
+    };
+  }
+
+  function getClockOffset() {
+    return clockOffsetMs;
+  }
+
   function getStatus() {
     return status;
   }
@@ -174,5 +256,7 @@ export function createWebSocketClient({
     onStatusChange,
     onMessage,
     onError,
+    onClockOffsetChange,
+    getClockOffset,
   };
 }

@@ -69,6 +69,7 @@ describe("sessionClient playback integration", () => {
     expect(listener).toHaveBeenCalledWith({
       connectionStatus: "disconnected",
       role: "participant",
+      clockOffsetMs: 0,
       playback: {
         position: 125,
         isPlaying: true,

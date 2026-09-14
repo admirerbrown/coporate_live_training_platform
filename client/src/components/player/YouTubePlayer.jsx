@@ -27,6 +27,7 @@ const RECONCILIATION_INTERVAL_MS = 1000;
 export default function YouTubePlayer({
   videoUrl,
   playback,
+  clockOffsetMs = 0,
   className = "",
   onDurationChange,
 }) {
@@ -44,6 +45,8 @@ export default function YouTubePlayer({
 
   const playbackRef = useRef(playback);
 
+  const clockOffsetRef = useRef(clockOffsetMs);
+
   const playbackRateRef = useRef(
     NORMAL_PLAYBACK_RATE,
   );
@@ -54,6 +57,10 @@ export default function YouTubePlayer({
   useEffect(() => {
     playbackRef.current = playback;
   }, [playback]);
+
+  useEffect(() => {
+    clockOffsetRef.current = clockOffsetMs;
+  }, [clockOffsetMs]);
 
   const videoId =
     getYouTubeVideoId(videoUrl);
@@ -94,7 +101,9 @@ export default function YouTubePlayer({
     return calculateEffectivePosition({
       ...currentPlayback,
       serverTime:
-        new Date().toISOString(),
+        new Date(
+          Date.now() + clockOffsetRef.current,
+        ).toISOString(),
     });
   }
 
