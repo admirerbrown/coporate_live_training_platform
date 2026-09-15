@@ -1,16 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 
-import {
-  calculateEffectivePosition,
-} from "../../../../shared/playbackSync";
+import { calculateEffectivePosition } from "../../../../shared/playbackSync";
 
-import {
-  loadYouTubeIframeApi,
-} from "../../youtube/youtubeApi";
+import { loadYouTubeIframeApi } from "../../youtube/youtubeApi";
 
-import {
-  getYouTubeVideoId,
-} from "../../youtube/youtubeVideoId";
+import { getYouTubeVideoId } from "../../youtube/youtubeVideoId";
 
 const DRIFT_THRESHOLD_SECONDS = 1.5;
 
@@ -37,25 +31,19 @@ export default function YouTubePlayer({
 
   const playerReadyRef = useRef(false);
 
-  const previousAppliedPlaybackRef =
-    useRef(null);
+  const previousAppliedPlaybackRef = useRef(null);
 
-  const playingAlignmentVersionRef =
-    useRef(null);
+  const playingAlignmentVersionRef = useRef(null);
 
   const playbackRef = useRef(playback);
 
   const clockOffsetRef = useRef(clockOffsetMs);
 
-  const playbackRateRef = useRef(
-    NORMAL_PLAYBACK_RATE,
-  );
+  const playbackRateRef = useRef(NORMAL_PLAYBACK_RATE);
 
-  const [loadError, setLoadError] =
-    useState(null);
+  const [loadError, setLoadError] = useState(null);
 
-  const [playerReady, setPlayerReady] =
-    useState(false);
+  const [playerReady, setPlayerReady] = useState(false);
 
   useEffect(() => {
     playbackRef.current = playback;
@@ -65,24 +53,16 @@ export default function YouTubePlayer({
     clockOffsetRef.current = clockOffsetMs;
   }, [clockOffsetMs]);
 
-  const videoId =
-    getYouTubeVideoId(videoUrl);
+  const videoId = getYouTubeVideoId(videoUrl);
 
-  const error =
-    !videoId
-      ? "Invalid YouTube video URL"
-      : loadError?.videoUrl === videoUrl
-        ? loadError.message
-        : null;
+  const error = !videoId
+    ? "Invalid YouTube video URL"
+    : loadError?.videoUrl === videoUrl
+      ? loadError.message
+      : null;
 
-  function setPlaybackRate(
-    player,
-    rate,
-  ) {
-    if (
-      playbackRateRef.current ===
-      rate
-    ) {
+  function setPlaybackRate(player, rate) {
+    if (playbackRateRef.current === rate) {
       return;
     }
 
@@ -92,21 +72,13 @@ export default function YouTubePlayer({
   }
 
   function resetPlaybackRate(player) {
-    setPlaybackRate(
-      player,
-      NORMAL_PLAYBACK_RATE,
-    );
+    setPlaybackRate(player, NORMAL_PLAYBACK_RATE);
   }
 
-  function getEffectivePosition(
-    currentPlayback,
-  ) {
+  function getEffectivePosition(currentPlayback) {
     return calculateEffectivePosition({
       ...currentPlayback,
-      serverTime:
-        new Date(
-          Date.now() + clockOffsetRef.current,
-        ).toISOString(),
+      serverTime: new Date(Date.now() + clockOffsetRef.current).toISOString(),
     });
   }
 
@@ -115,125 +87,76 @@ export default function YouTubePlayer({
     currentPlayback,
     { forceSeek = false } = {},
   ) {
-    const effectivePosition =
-      getEffectivePosition(
-        currentPlayback,
-      );
+    const effectivePosition = getEffectivePosition(currentPlayback);
 
     // The IFrame API exposes getCurrentTime(),
     // but keep the hard-seek fallback so initialization
     // and unusual test/dummy players remain safe.
     const actualPosition =
-      typeof player.getCurrentTime ===
-      "function"
-        ? Number(
-            player.getCurrentTime(),
-          )
+      typeof player.getCurrentTime === "function"
+        ? Number(player.getCurrentTime())
         : Number.NaN;
 
-    if (
-      !Number.isFinite(
-        actualPosition,
-      )
-    ) {
+    if (!Number.isFinite(actualPosition)) {
       resetPlaybackRate(player);
 
-      player.seekTo(
-        effectivePosition,
-        true,
-      );
+      player.seekTo(effectivePosition, true);
 
-      previousAppliedPlaybackRef.current =
-        {
-          effectivePosition,
-          isPlaying:
-            currentPlayback.isPlaying,
-        };
+      previousAppliedPlaybackRef.current = {
+        effectivePosition,
+        isPlaying: currentPlayback.isPlaying,
+      };
 
       return;
     }
 
-    const drift =
-      effectivePosition -
-      actualPosition;
+    const drift = effectivePosition - actualPosition;
 
-    const absoluteDrift =
-      Math.abs(drift);
+    const absoluteDrift = Math.abs(drift);
 
     if (!currentPlayback.isPlaying) {
       resetPlaybackRate(player);
 
-      if (
-        forceSeek ||
-        absoluteDrift >
-          DRIFT_THRESHOLD_SECONDS
-      ) {
-        player.seekTo(
-          effectivePosition,
-          true,
-        );
+      if (forceSeek || absoluteDrift > DRIFT_THRESHOLD_SECONDS) {
+        player.seekTo(effectivePosition, true);
       }
 
-      previousAppliedPlaybackRef.current =
-        {
-          effectivePosition,
-          isPlaying:
-            currentPlayback.isPlaying,
-        };
+      previousAppliedPlaybackRef.current = {
+        effectivePosition,
+        isPlaying: currentPlayback.isPlaying,
+      };
 
       return;
     }
 
-    if (
-      absoluteDrift <=
-      DRIFT_THRESHOLD_SECONDS
-    ) {
+    if (absoluteDrift <= DRIFT_THRESHOLD_SECONDS) {
       resetPlaybackRate(player);
-    } else if (
-      absoluteDrift <=
-      SOFT_SYNC_MAX_DRIFT_SECONDS
-    ) {
+    } else if (absoluteDrift <= SOFT_SYNC_MAX_DRIFT_SECONDS) {
       setPlaybackRate(
         player,
-        drift > 0
-          ? SOFT_SYNC_PLAYBACK_RATE
-          : SOFT_SYNC_SLOWDOWN_RATE,
+        drift > 0 ? SOFT_SYNC_PLAYBACK_RATE : SOFT_SYNC_SLOWDOWN_RATE,
       );
     } else {
       resetPlaybackRate(player);
 
-      player.seekTo(
-        effectivePosition,
-        true,
-      );
+      player.seekTo(effectivePosition, true);
     }
 
-    previousAppliedPlaybackRef.current =
-      {
-        effectivePosition,
-        isPlaying:
-          currentPlayback.isPlaying,
-      };
+    previousAppliedPlaybackRef.current = {
+      effectivePosition,
+      isPlaying: currentPlayback.isPlaying,
+    };
   }
 
-  function applyInitialPlayback(
-    player,
-    currentPlayback,
-  ) {
+  function applyInitialPlayback(player, currentPlayback) {
     // Initial application is a hard seek because
     // the player has just been created and may be
     // many seconds behind the authoritative session position.
-    const effectivePosition =
-      getEffectivePosition(
-        currentPlayback,
-      );
+    const effectivePosition = getEffectivePosition(currentPlayback);
 
     resetPlaybackRate(player);
 
-    player.seekTo(
-      effectivePosition,
-      true,
-    );
+    player.seekTo(effectivePosition, true);
 
     if (currentPlayback.isPlaying) {
       player.playVideo();
@@ -241,44 +164,32 @@ export default function YouTubePlayer({
       player.pauseVideo();
     }
 
-    previousAppliedPlaybackRef.current =
-      {
-        effectivePosition,
-        isPlaying:
-          currentPlayback.isPlaying,
-      };
+    previousAppliedPlaybackRef.current = {
+      effectivePosition,
+      isPlaying: currentPlayback.isPlaying,
+    };
   }
 
-  function alignPlayingPlayer(
-    player,
-    currentPlayback,
-  ) {
+  function alignPlayingPlayer(player, currentPlayback) {
     if (
       !currentPlayback.isPlaying ||
-      playingAlignmentVersionRef.current ===
-        currentPlayback.version
+      playingAlignmentVersionRef.current === currentPlayback.version
     ) {
       return;
     }
 
-    playingAlignmentVersionRef.current =
-      currentPlayback.version;
+    playingAlignmentVersionRef.current = currentPlayback.version;
 
     resetPlaybackRate(player);
 
-    const effectivePosition =
-      getEffectivePosition(currentPlayback);
+    const effectivePosition = getEffectivePosition(currentPlayback);
 
-    player.seekTo(
+    player.seekTo(effectivePosition, true);
+
+    previousAppliedPlaybackRef.current = {
       effectivePosition,
-      true,
-    );
-
-    previousAppliedPlaybackRef.current =
-      {
-        effectivePosition,
-        isPlaying: true,
-      };
+      isPlaying: true,
+    };
   }
 
   useEffect(() => {
@@ -291,81 +202,63 @@ export default function YouTubePlayer({
 
     loadYouTubeIframeApi()
       .then(({ Player }) => {
-        if (
-          cancelled ||
-          !containerRef.current
-        ) {
+        if (cancelled || !containerRef.current) {
           return;
         }
 
-        const player =
-          new Player(
-            containerRef.current,
-            {
-              videoId,
+        const player = new Player(containerRef.current, {
+          videoId,
 
-              playerVars: {
-                controls: 0,
-                disablekb: 1,
-                fs: 0,
-                modestbranding: 1,
-                rel: 0,
-                origin:
-                  window.location.origin,
-                playsinline: 1,
-              },
+          playerVars: {
+            controls: 0,
+            disablekb: 1,
+            fs: 0,
+            modestbranding: 1,
+            rel: 0,
+            origin: window.location.origin,
+            playsinline: 1,
+          },
 
-              events: {
-                onReady(event) {
-                  if (cancelled) {
-                    return;
-                  }
+          events: {
+            onReady(event) {
+              if (cancelled) {
+                return;
+              }
 
-                  // Validate against the
-                  // specific player instance
-                  // created by this effect.
-                  if (
-                    event.target !==
-                    player
-                  ) {
-                    return;
-                  }
+              // Validate against the
+              // specific player instance
+              // created by this effect.
+              if (event.target !== player) {
+                return;
+              }
 
-                  playerReadyRef.current =
-                    true;
+              playerReadyRef.current = true;
 
-                  setPlayerReady(true);
+              setPlayerReady(true);
 
-                  setLoadError(null);
+              setLoadError(null);
 
-                  if (typeof onDurationChange === "function") {
-                    onDurationChange(event.target.getDuration());
-                  }
+              if (typeof onDurationChange === "function") {
+                onDurationChange(event.target.getDuration());
+              }
 
-                  applyInitialPlayback(
-                    event.target,
-                    playbackRef.current,
-                  );
-                },
-
-                onStateChange(event) {
-                  if (
-                    cancelled ||
-                    event.target !== player ||
-                    event.data !== 1 ||
-                    !playerReadyRef.current
-                  ) {
-                    return;
-                  }
-
-                  alignPlayingPlayer(
-                    event.target,
-                    playbackRef.current,
-                  );
-                },
-              },
+              applyInitialPlayback(event.target, playbackRef.current);
             },
-          );
+
+            onStateChange(event) {
+              if (
+                cancelled ||
+                event.target !== player ||
+                event.data !== 1 ||
+                !playerReadyRef.current
+              ) {
+                return;
+              }
+
+              alignPlayingPlayer(event.target, playbackRef.current);
+            },
+          },
+        });
 
         if (cancelled) {
           player.destroy();
@@ -380,21 +273,13 @@ export default function YouTubePlayer({
         // The callback itself waits for
         // playerReadyRef.current so it is safe
         // if YouTube has not fired onReady yet.
-        intervalId =
-          window.setInterval(() => {
-            if (
-              playerRef.current !==
-                player ||
-              !playerReadyRef.current
-            ) {
-              return;
-            }
+        intervalId = window.setInterval(() => {
+          if (playerRef.current !== player || !playerReadyRef.current) {
+            return;
+          }
 
-            reconcilePlayback(
-              player,
-              playbackRef.current,
-            );
-          }, RECONCILIATION_INTERVAL_MS);
+          reconcilePlayback(player, playbackRef.current);
+        }, RECONCILIATION_INTERVAL_MS);
       })
       .catch((err) => {
         if (cancelled) {
@@ -417,26 +302,20 @@ export default function YouTubePlayer({
       cancelled = true;
 
       if (intervalId !== null) {
-        window.clearInterval(
-          intervalId,
-        );
+        window.clearInterval(intervalId);
       }
 
-      const player =
-        playerRef.current;
+      const player = playerRef.current;
 
       playerRef.current = null;
 
       playerReadyRef.current = false;
 
-      previousAppliedPlaybackRef.current =
-        null;
+      previousAppliedPlaybackRef.current = null;
 
-      playingAlignmentVersionRef.current =
-        null;
+      playingAlignmentVersionRef.current = null;
 
-      playbackRateRef.current =
-        NORMAL_PLAYBACK_RATE;
+      playbackRateRef.current = NORMAL_PLAYBACK_RATE;
 
       if (player) {
         player.destroy();
@@ -447,77 +326,46 @@ export default function YouTubePlayer({
   }, [videoId, videoUrl]);
 
   useEffect(() => {
-    const player =
-      playerRef.current;
+    const player = playerRef.current;
 
-    if (
-      !player ||
-      !playerReadyRef.current
-    ) {
+    if (!player || !playerReadyRef.current) {
       return undefined;
     }
 
-    const currentPlayback =
-      playback;
+    const currentPlayback = playback;
 
-    const effectivePosition =
-      getEffectivePosition(
-        currentPlayback,
-      );
+    const effectivePosition = getEffectivePosition(currentPlayback);
 
-    const previous =
-      previousAppliedPlaybackRef.current;
+    const previous = previousAppliedPlaybackRef.current;
 
-    const positionChanged =
-      previous?.effectivePosition !==
-      effectivePosition;
+    const positionChanged = previous?.effectivePosition !== effectivePosition;
 
-    const playingChanged =
-      previous?.isPlaying !==
-      currentPlayback.isPlaying;
+    const playingChanged = previous?.isPlaying !== currentPlayback.isPlaying;
 
-    if (
-      positionChanged ||
-      playingChanged
-    ) {
+    if (positionChanged || playingChanged) {
       if (playingChanged) {
         resetPlaybackRate(player);
 
-        if (
-          currentPlayback.isPlaying
-        ) {
+        if (currentPlayback.isPlaying) {
           player.playVideo();
         } else {
           player.pauseVideo();
         }
       }
 
-      if (
-        !positionChanged &&
-        playingChanged
-      ) {
-        previousAppliedPlaybackRef.current =
-          {
-            effectivePosition,
-            isPlaying:
-              currentPlayback.isPlaying,
-          };
+      if (!positionChanged && playingChanged) {
+        previousAppliedPlaybackRef.current = {
+          effectivePosition,
+          isPlaying: currentPlayback.isPlaying,
+        };
 
         return undefined;
       }
 
-      reconcilePlayback(
-        player,
-        currentPlayback,
-        {
-          forceSeek:
-            !currentPlayback.isPlaying &&
-            (
-              positionChanged ||
-              playingChanged
-            ),
-        },
-      );
+      reconcilePlayback(player, currentPlayback, {
+        forceSeek:
+          !currentPlayback.isPlaying && (positionChanged || playingChanged),
+      });
     }
 
     return undefined;
@@ -528,9 +376,7 @@ export default function YouTubePlayer({
   return (
     <section className={`h-full ${className}`} aria-label="YouTube player">
       {error ? (
-        <div role="alert">
-          {error}
-        </div>
+        <div role="alert">{error}</div>
       ) : (
         <>
           {!playerReady && (
@@ -550,4 +396,4 @@ export default function YouTubePlayer({
       )}
     </section>
   );
-};
+}
